@@ -390,6 +390,17 @@
         <button class="btn" onclick="downloadAllICS()">📅 Download All as .ics</button>
       </div>
     </div>
+    
+    <!-- Subscribe Card -->
+    <div class="card">
+      <div class="card-header">🔗 Live Calendar Sync</div>
+      <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 16px;">Subscribe once in Outlook and new events will sync automatically!</p>
+      <div class="btn-group" style="margin-top: 0;">
+        <button class="btn btn-primary" onclick="subscribeToCalendar()">📅 Subscribe in Outlook</button>
+        <button class="btn" onclick="copyCalendarLink()">📋 Copy Link</button>
+      </div>
+      <p id="copyConfirm" style="color: var(--accent2); font-size: 0.8rem; margin-top: 12px; display: none;">✓ Link copied!</p>
+    </div>
   </div>
   
   <script>
@@ -722,6 +733,23 @@ END:VEVENT
         }
       }
     });
+    
+    // Calendar subscription
+    const CALENDAR_FEED_URL = 'https://jwxdolqobyspalaymkyq.supabase.co/functions/v1/calendar-feed';
+    
+    function subscribeToCalendar() {
+      // webcal:// protocol opens in default calendar app
+      const webcalUrl = CALENDAR_FEED_URL.replace('https://', 'webcal://');
+      window.open(webcalUrl, '_blank');
+    }
+    
+    function copyCalendarLink() {
+      navigator.clipboard.writeText(CALENDAR_FEED_URL).then(() => {
+        const confirm = document.getElementById('copyConfirm');
+        confirm.style.display = 'block';
+        setTimeout(() => confirm.style.display = 'none', 3000);
+      });
+    }
     
     // Init
     renderEvents();
