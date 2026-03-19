@@ -7,65 +7,133 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     :root {
-      --bg: #0f172a;
-      --card: #1e293b;
-      --border: #334155;
-      --text: #e2e8f0;
-      --muted: #94a3b8;
-      --accent: #a78bfa;
-      --accent2: #22c55e;
+      --bg: #12121c;
+      --card: #16161f;
+      --border: rgba(255,255,255,0.06);
+      --text: #e0e0e0;
+      --muted: #666;
+      --accent: #00d9ff;
+      --accent2: #00d98f;
+      --purple: #b366ff;
+      --orange: #ffaa00;
       --danger: #ef4444;
     }
     
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
     body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
+    }
+    
+    /* Light Mode */
+    body.light-mode {
+      --bg: #f5f6fa;
+      --card: #ffffff;
+      --border: #e1e4e8;
+      --text: #2d3436;
+      --muted: #636e72;
+    }
+    
+    /* Header */
+    .top-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      height: 60px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .brand {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    
+    .theme-toggle-track {
+      width: 36px;
+      height: 20px;
+      background: #2d3436;
+      border-radius: 10px;
+      position: relative;
+      transition: background 0.3s;
+    }
+    
+    .theme-toggle-thumb {
+      width: 16px;
+      height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s;
+    }
+    
+    body.light-mode .theme-toggle-track { background: #0984e3; }
+    body.light-mode .theme-toggle-thumb { transform: translateX(16px); }
+    
+    .theme-toggle-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    
+    /* Main Content */
+    .main-content {
+      max-width: 900px;
+      margin: 0 auto;
       padding: 24px;
     }
     
-    .container {
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    
-    .header {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-    
-    .header h1 {
-      font-size: 1.8rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, var(--accent), #ec4899);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+    .page-title {
+      font-size: 1.5rem;
+      font-weight: 600;
       margin-bottom: 8px;
+      color: var(--text);
     }
     
-    .header p {
+    .page-subtitle {
       color: var(--muted);
       font-size: 0.9rem;
-    }
-    
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 24px;
       margin-bottom: 24px;
     }
     
-    .card h2 {
-      font-size: 1rem;
-      font-weight: 600;
-      margin-bottom: 16px;
-      color: var(--accent);
+    /* Cards */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
     }
     
+    .card-header {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05rem;
+      color: var(--muted);
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    /* Form */
     .form-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -83,68 +151,72 @@
       grid-column: 1 / -1;
     }
     
-    .form-group label {
-      font-size: 0.8rem;
+    .form-label {
+      font-size: 0.75rem;
       color: var(--muted);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.03rem;
     }
     
-    .form-group input, .form-group select {
-      padding: 12px;
+    .form-input, .form-select {
+      padding: 10px 12px;
       background: var(--bg);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 6px;
       color: var(--text);
-      font-size: 0.95rem;
+      font-size: 0.9rem;
     }
     
-    .form-group input:focus, .form-group select:focus {
+    .form-input:focus, .form-select:focus {
       outline: none;
       border-color: var(--accent);
     }
     
+    body.light-mode .form-input, body.light-mode .form-select {
+      background: #f8f9fa;
+    }
+    
+    /* Buttons */
     .btn {
-      padding: 12px 24px;
-      border: none;
-      border-radius: 8px;
-      font-size: 0.9rem;
-      font-weight: 600;
+      padding: 10px 20px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
       cursor: pointer;
       transition: all 0.2s;
-    }
-    
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent), #ec4899);
-      color: white;
-    }
-    
-    .btn-primary:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(167, 139, 250, 0.3);
-    }
-    
-    .btn-secondary {
-      background: var(--bg);
-      border: 1px solid var(--border);
+      background: transparent;
       color: var(--text);
     }
     
-    .btn-secondary:hover {
+    .btn:hover {
       border-color: var(--accent);
       color: var(--accent);
     }
     
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #000;
+    }
+    
+    .btn-primary:hover {
+      background: #00c4e6;
+      border-color: #00c4e6;
+      color: #000;
+    }
+    
     .btn-group {
       display: flex;
-      gap: 12px;
+      gap: 10px;
       margin-top: 16px;
     }
     
+    /* Timeline */
     .timeline {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 8px;
     }
     
     .timeline-item {
@@ -154,8 +226,12 @@
       padding: 12px 16px;
       background: var(--bg);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 6px;
       transition: all 0.2s;
+    }
+    
+    body.light-mode .timeline-item {
+      background: #f8f9fa;
     }
     
     .timeline-item:hover {
@@ -175,45 +251,38 @@
     }
     
     .timeline-badge {
-      font-size: 0.7rem;
+      font-size: 0.65rem;
       padding: 4px 8px;
       border-radius: 4px;
       text-transform: uppercase;
       font-weight: 600;
+      letter-spacing: 0.03rem;
     }
     
-    .badge-pre { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
-    .badge-post { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+    .badge-pre { background: rgba(0,217,143,0.15); color: var(--accent2); }
+    .badge-post { background: rgba(179,102,255,0.15); color: var(--purple); }
     
-    .empty-state {
-      text-align: center;
-      padding: 48px 24px;
-      color: var(--muted);
-    }
-    
-    .empty-state p {
-      margin-bottom: 8px;
-    }
-    
-    .events-list {
-      margin-top: 16px;
-    }
-    
+    /* Events List */
     .event-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px;
+      padding: 12px 16px;
       background: var(--bg);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 6px;
       margin-bottom: 8px;
+    }
+    
+    body.light-mode .event-row {
+      background: #f8f9fa;
     }
     
     .event-info h3 {
       font-size: 0.95rem;
       font-weight: 600;
       margin-bottom: 4px;
+      color: var(--text);
     }
     
     .event-info p {
@@ -221,14 +290,31 @@
       color: var(--muted);
     }
     
+    .event-type-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 3px;
+      margin-right: 6px;
+    }
+    
+    .badge-wedding { background: rgba(255,170,0,0.15); color: var(--orange); }
+    .badge-event { background: rgba(0,217,255,0.15); color: var(--accent); }
+    
     .event-actions {
       display: flex;
       gap: 8px;
     }
     
-    .event-actions button {
+    .event-actions .btn {
       padding: 6px 12px;
       font-size: 0.8rem;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--muted);
     }
     
     #savedEvents { display: none; }
@@ -238,33 +324,44 @@
       .form-row { grid-template-columns: 1fr; }
       .timeline-item { flex-direction: column; align-items: flex-start; gap: 8px; }
       .timeline-date { min-width: auto; }
+      .top-header { padding: 0 1rem; }
+      .main-content { padding: 16px; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>📅 CSM Timeline Generator</h1>
-      <p>Generate event milestones and sync to your calendar</p>
+  <!-- Header -->
+  <div class="top-header">
+    <div class="brand">📅 CSM Timeline</div>
+    <div class="theme-toggle" onclick="toggleTheme()">
+      <span class="theme-toggle-label" id="themeLabel">Dark</span>
+      <div class="theme-toggle-track">
+        <div class="theme-toggle-thumb"></div>
+      </div>
     </div>
+  </div>
+  
+  <div class="main-content">
+    <h1 class="page-title">CSM Timeline Generator</h1>
+    <p class="page-subtitle">Generate event milestones and sync to your calendar</p>
     
     <!-- Input Form -->
     <div class="card">
-      <h2>📝 New Event</h2>
+      <div class="card-header">📝 New Event</div>
       <div class="form-row">
         <div class="form-group full">
-          <label>Group / Event Name</label>
-          <input type="text" id="groupName" placeholder="Smith Wedding">
+          <label class="form-label">Group / Event Name</label>
+          <input type="text" class="form-input" id="groupName" placeholder="Smith Wedding">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Event Date</label>
-          <input type="date" id="eventDate">
+          <label class="form-label">Event Date</label>
+          <input type="date" class="form-input" id="eventDate">
         </div>
         <div class="form-group">
-          <label>Event Type</label>
-          <select id="eventType">
+          <label class="form-label">Event Type</label>
+          <select class="form-select" id="eventType">
             <option value="non-wedding">Non-Wedding Event</option>
             <option value="wedding">Wedding</option>
           </select>
@@ -277,25 +374,45 @@
     
     <!-- Timeline Preview -->
     <div class="card" id="timelineCard" style="display: none;">
-      <h2>📋 Timeline Preview</h2>
+      <div class="card-header">📋 Timeline Preview</div>
       <div class="timeline" id="timelineList"></div>
       <div class="btn-group">
         <button class="btn btn-primary" onclick="saveEvent()">💾 Save Event</button>
-        <button class="btn btn-secondary" onclick="downloadICS()">📅 Download .ics</button>
+        <button class="btn" onclick="downloadICS()">📅 Download .ics</button>
       </div>
     </div>
     
     <!-- Saved Events -->
     <div class="card" id="savedEvents">
-      <h2>📁 Saved Events</h2>
-      <div class="events-list" id="eventsList"></div>
-      <div class="btn-group" style="margin-top: 16px;">
-        <button class="btn btn-secondary" onclick="downloadAllICS()">📅 Download All as .ics</button>
+      <div class="card-header">📁 Saved Events</div>
+      <div id="eventsList"></div>
+      <div class="btn-group">
+        <button class="btn" onclick="downloadAllICS()">📅 Download All as .ics</button>
       </div>
     </div>
   </div>
   
   <script>
+    // Theme
+    function toggleTheme() {
+      document.body.classList.toggle('light-mode');
+      const isLight = document.body.classList.contains('light-mode');
+      document.getElementById('themeLabel').textContent = isLight ? 'Light' : 'Dark';
+      localStorage.setItem('csm_theme', isLight ? 'light' : 'dark');
+    }
+    
+    // Load saved theme
+    (function() {
+      const savedTheme = localStorage.getItem('csm_theme');
+      if (savedTheme === 'light') {
+        document.body.classList.add('light-mode');
+        setTimeout(() => {
+          const label = document.getElementById('themeLabel');
+          if (label) label.textContent = 'Light';
+        }, 0);
+      }
+    })();
+    
     // Supabase setup
     const SUPABASE_URL = 'https://jwxdolqobyspalaymkyq.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3eGRvbHFvYnlzcGFsYXlta3lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyNzIwOTMsImV4cCI6MjA4ODg0ODA5M30.kagxIB5lhbriS5fcGXzA6fcY5wfK1KRekWP-Fc4BhPU';
@@ -494,11 +611,14 @@
         <div class="event-row">
           <div class="event-info">
             <h3>${e.groupName}</h3>
-            <p>${e.eventType === 'wedding' ? '💒 Wedding' : '🎉 Event'} · ${formatDate(new Date(e.eventDate))} · ${e.timeline.length} milestones</p>
+            <p>
+              <span class="event-type-badge ${e.eventType === 'wedding' ? 'badge-wedding' : 'badge-event'}">${e.eventType === 'wedding' ? '💒 Wedding' : '🎉 Event'}</span>
+              ${formatDate(new Date(e.eventDate))} · ${e.timeline.length} milestones
+            </p>
           </div>
           <div class="event-actions">
-            <button class="btn btn-secondary" onclick="downloadEventICS('${e.id}')">📅 .ics</button>
-            <button class="btn btn-secondary" onclick="deleteEvent('${e.id}')">🗑️</button>
+            <button class="btn" onclick="downloadEventICS('${e.id}')">📅 .ics</button>
+            <button class="btn" onclick="deleteEvent('${e.id}')">🗑️</button>
           </div>
         </div>
       `).join('');
@@ -589,6 +709,19 @@ END:VEVENT
       a.click();
       URL.revokeObjectURL(url);
     }
+    
+    // Listen for theme changes from parent (if embedded in Kelphi)
+    window.addEventListener('message', function(event) {
+      if (event.data && event.data.type === 'theme-change') {
+        if (event.data.theme === 'light') {
+          document.body.classList.add('light-mode');
+          document.getElementById('themeLabel').textContent = 'Light';
+        } else {
+          document.body.classList.remove('light-mode');
+          document.getElementById('themeLabel').textContent = 'Dark';
+        }
+      }
+    });
     
     // Init
     renderEvents();
