@@ -6,19 +6,26 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Color categories for Outlook
+const CATEGORY_COLORS: Record<string, string> = {
+  'Planning': 'Blue',
+  'Tasting': 'Orange', 
+  'BEO': 'Purple',
+  'Menu': 'Green',
+  'GuestCount': 'Red',
+  'ThankYou': 'Pink'
+}
+
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Fetch events from database
     const { data, error } = await supabase
       .from('csm_events')
       .select('*')
@@ -31,7 +38,6 @@ serve(async (req) => {
 
     const events = data?.data || []
 
-    // Generate ICS content
     let ics = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//The Compton//CSM Timeline//EN
@@ -50,11 +56,26 @@ X-WR-CALDESC:Conference Services Manager deadlines for The Compton
         const uid = `${event.id}-${dateStr}-${item.task.replace(/\s/g, '')}@thecompton.csm`
         const now = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
         
+        // Format: "(task) for [BOOKING]"
+        const summary = `${item.task} for ${event.groupName}`
+        
+        // Description with contact info
+        let description = `Event: ${event.groupName}\\n`
+        description += `Type: ${event.eventType === 'wedding' ? 'Wedding' : 'Event'}\\n`
+        description += `Event Date: ${new Date(event.eventDate).toLocaleDateString()}\\n`
+        if (event.contactName) {
+          description += `Contact: ${event.contactName}\\n`
+        }
+        
+        // Category for color coding
+        const category = item.category || 'Planning'
+        
         ics += `BEGIN:VEVENT
 DTSTART;VALUE=DATE:${dateStr}
 DTSTAMP:${now}
-SUMMARY:${event.groupName}: ${item.task}
-DESCRIPTION:${event.eventType === 'wedding' ? 'Wedding' : 'Event'} - ${item.task}\\nEvent Date: ${new Date(event.eventDate).toLocaleDateString()}
+SUMMARY:${summary}
+DESCRIPTION:${description}
+CATEGORIES:${category}
 UID:${uid}
 STATUS:CONFIRMED
 END:VEVENT
@@ -64,7 +85,6 @@ END:VEVENT
 
     ics += 'END:VCALENDAR'
 
-    // Return ICS with proper headers
     return new Response(ics, {
       headers: {
         ...corsHeaders,

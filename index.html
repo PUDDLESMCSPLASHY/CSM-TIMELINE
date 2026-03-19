@@ -176,6 +176,56 @@
       background: #f8f9fa;
     }
     
+    /* Search */
+    .search-bar {
+      margin-bottom: 16px;
+    }
+    
+    .search-input {
+      width: 100%;
+      padding: 10px 12px;
+      padding-left: 36px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.9rem;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23666' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: 12px center;
+    }
+    
+    body.light-mode .search-input {
+      background-color: #f8f9fa;
+    }
+    
+    /* Sort controls */
+    .sort-controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .sort-btn {
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .sort-btn:hover, .sort-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    
+    body.light-mode .sort-btn {
+      background: #f8f9fa;
+    }
+    
     /* Buttons */
     .btn {
       padding: 10px 20px;
@@ -238,6 +288,13 @@
       border-color: var(--accent);
     }
     
+    .timeline-color {
+      width: 4px;
+      height: 32px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    
     .timeline-date {
       min-width: 100px;
       font-size: 0.85rem;
@@ -261,6 +318,14 @@
     
     .badge-pre { background: rgba(0,217,143,0.15); color: var(--accent2); }
     .badge-post { background: rgba(179,102,255,0.15); color: var(--purple); }
+    
+    /* Milestone colors */
+    .color-planning { background: #3b82f6; }
+    .color-tasting { background: #f59e0b; }
+    .color-beo { background: #8b5cf6; }
+    .color-menu { background: #10b981; }
+    .color-count { background: #ef4444; }
+    .color-thankyou { background: #ec4899; }
     
     /* Events List */
     .event-row {
@@ -320,12 +385,37 @@
     #savedEvents { display: none; }
     #savedEvents.has-events { display: block; }
     
+    /* Color legend */
+    .color-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+    }
+    
     @media (max-width: 600px) {
       .form-row { grid-template-columns: 1fr; }
       .timeline-item { flex-direction: column; align-items: flex-start; gap: 8px; }
       .timeline-date { min-width: auto; }
       .top-header { padding: 0 1rem; }
       .main-content { padding: 16px; }
+      .sort-controls { flex-wrap: wrap; }
     }
   </style>
 </head>
@@ -349,9 +439,13 @@
     <div class="card">
       <div class="card-header">📝 New Event</div>
       <div class="form-row">
-        <div class="form-group full">
-          <label class="form-label">Group / Event Name</label>
-          <input type="text" class="form-input" id="groupName" placeholder="Smith Wedding">
+        <div class="form-group">
+          <label class="form-label">Booking Name</label>
+          <input type="text" class="form-input" id="groupName" placeholder="Sammy's Birthday Party">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contact Name</label>
+          <input type="text" class="form-input" id="contactName" placeholder="Jane Smith">
         </div>
       </div>
       <div class="form-row">
@@ -376,19 +470,31 @@
     <div class="card" id="timelineCard" style="display: none;">
       <div class="card-header">📋 Timeline Preview</div>
       <div class="timeline" id="timelineList"></div>
+      <div class="color-legend">
+        <div class="legend-item"><div class="legend-color color-planning"></div> Planning Call</div>
+        <div class="legend-item"><div class="legend-color color-tasting"></div> Tasting</div>
+        <div class="legend-item"><div class="legend-color color-beo"></div> BEO Draft</div>
+        <div class="legend-item"><div class="legend-color color-menu"></div> Menu Due</div>
+        <div class="legend-item"><div class="legend-color color-count"></div> Guest Count</div>
+        <div class="legend-item"><div class="legend-color color-thankyou"></div> Thank You</div>
+      </div>
       <div class="btn-group">
         <button class="btn btn-primary" onclick="saveEvent()">💾 Save Event</button>
-        <button class="btn" onclick="downloadICS()">📅 Download .ics</button>
       </div>
     </div>
     
     <!-- Saved Events -->
     <div class="card" id="savedEvents">
       <div class="card-header">📁 Saved Events</div>
-      <div id="eventsList"></div>
-      <div class="btn-group">
-        <button class="btn" onclick="downloadAllICS()">📅 Download All as .ics</button>
+      <div class="search-bar">
+        <input type="text" class="search-input" id="searchInput" placeholder="Search events..." oninput="renderEvents()">
       </div>
+      <div class="sort-controls">
+        <span style="font-size: 0.75rem; color: var(--muted); margin-right: 8px;">Sort by:</span>
+        <button class="sort-btn active" id="sortName" onclick="setSortBy('name')">Booking Name</button>
+        <button class="sort-btn" id="sortDate" onclick="setSortBy('date')">Event Date</button>
+      </div>
+      <div id="eventsList"></div>
     </div>
     
     <!-- Subscribe Card -->
@@ -432,38 +538,72 @@
     // Local data
     let events = JSON.parse(localStorage.getItem('csmEvents')) || [];
     let currentTimeline = [];
+    let sortBy = 'name';
+    
+    // Milestone colors
+    const MILESTONE_COLORS = {
+      'planning': 'color-planning',
+      'tasting': 'color-tasting',
+      'beo': 'color-beo',
+      'menu': 'color-menu',
+      'count': 'color-count',
+      'thank': 'color-thankyou'
+    };
+    
+    function getColorClass(task) {
+      const taskLower = task.toLowerCase();
+      if (taskLower.includes('planning')) return 'color-planning';
+      if (taskLower.includes('tasting')) return 'color-tasting';
+      if (taskLower.includes('beo')) return 'color-beo';
+      if (taskLower.includes('menu')) return 'color-menu';
+      if (taskLower.includes('count') || taskLower.includes('guest')) return 'color-count';
+      if (taskLower.includes('thank')) return 'color-thankyou';
+      return 'color-planning';
+    }
+    
+    function getColorCategory(task) {
+      const taskLower = task.toLowerCase();
+      if (taskLower.includes('planning')) return 'Planning';
+      if (taskLower.includes('tasting')) return 'Tasting';
+      if (taskLower.includes('beo')) return 'BEO';
+      if (taskLower.includes('menu')) return 'Menu';
+      if (taskLower.includes('count') || taskLower.includes('guest')) return 'GuestCount';
+      if (taskLower.includes('thank')) return 'ThankYou';
+      return 'Planning';
+    }
     
     // Milestone rules (days before event, negative = after)
     const MILESTONES = {
       wedding: [
-        { days: 112, task: 'Schedule planning call', minLead: 112 },  // 16 weeks
-        { days: 84, task: 'Schedule planning call', minLead: 84, maxLead: 111 },  // 12 weeks (if <16)
-        { days: 56, task: 'Tasting', minLead: 56 },  // 8 weeks
-        { days: 35, task: 'BEO draft due', minLead: 35 },  // 5 weeks
-        { days: 21, task: 'Menu selections due', minLead: 21 },
-        { days: 14, task: 'Final guaranteed guest count', minLead: 1 },
-        { days: -1, task: 'Send thank you email', minLead: 1 }  // POST event
+        { days: 112, task: 'Schedule Planning Call', minLead: 112 },
+        { days: 84, task: 'Schedule Planning Call', minLead: 84, maxLead: 111 },
+        { days: 56, task: 'Tasting', minLead: 56 },
+        { days: 35, task: 'BEO Draft Due', minLead: 35 },
+        { days: 21, task: 'Menu Selections Due', minLead: 21 },
+        { days: 14, task: 'Final Guaranteed Guest Count', minLead: 1 },
+        { days: -1, task: 'Send Thank You Email', minLead: 1 }
       ],
       'non-wedding': [
-        { days: 84, task: 'Schedule planning call', minLead: 84 },  // 12 weeks
-        { days: 35, task: 'BEO draft due', minLead: 35 },  // 5 weeks
-        { days: 21, task: 'Menu selections due', minLead: 21 },
-        { days: 14, task: 'Final guaranteed guest count', minLead: 1 },
-        { days: -1, task: 'Send thank you email', minLead: 1 }  // POST event
+        { days: 84, task: 'Schedule Planning Call', minLead: 84 },
+        { days: 35, task: 'BEO Draft Due', minLead: 35 },
+        { days: 21, task: 'Menu Selections Due', minLead: 21 },
+        { days: 14, task: 'Final Guaranteed Guest Count', minLead: 1 },
+        { days: -1, task: 'Send Thank You Email', minLead: 1 }
       ],
       'short-lead': [
-        { days: 14, task: 'Final guest count + confirm menu', minLead: 1 },
-        { days: -1, task: 'Send thank you email', minLead: 1 }
+        { days: 14, task: 'Final Guest Count + Confirm Menu', minLead: 1 },
+        { days: -1, task: 'Send Thank You Email', minLead: 1 }
       ]
     };
     
     function generateTimeline() {
       const groupName = document.getElementById('groupName').value.trim();
+      const contactName = document.getElementById('contactName').value.trim();
       const eventDate = document.getElementById('eventDate').value;
       const eventType = document.getElementById('eventType').value;
       
       if (!groupName || !eventDate) {
-        alert('Please enter group name and event date');
+        alert('Please enter booking name and event date');
         return;
       }
       
@@ -473,7 +613,6 @@
       
       const daysOut = Math.floor((eventDateObj - today) / (1000 * 60 * 60 * 24));
       
-      // Determine which milestone set to use
       let milestoneSet;
       if (daysOut <= 21) {
         milestoneSet = MILESTONES['short-lead'];
@@ -481,37 +620,35 @@
         milestoneSet = MILESTONES[eventType];
       }
       
-      // Generate timeline
       currentTimeline = [];
       
       milestoneSet.forEach(m => {
-        // Check if this milestone applies based on lead time
         if (m.minLead && daysOut < m.minLead) return;
         if (m.maxLead && daysOut > m.maxLead) return;
         
         const milestoneDate = new Date(eventDateObj);
         milestoneDate.setDate(milestoneDate.getDate() - m.days);
         
-        // Skip if milestone date is in the past
         if (milestoneDate < today && m.days > 0) return;
         
         currentTimeline.push({
           date: milestoneDate,
           task: m.task,
-          isPost: m.days < 0
+          isPost: m.days < 0,
+          colorClass: getColorClass(m.task),
+          category: getColorCategory(m.task)
         });
       });
       
-      // Sort by date
       currentTimeline.sort((a, b) => a.date - b.date);
       
-      // Render timeline
       renderTimeline();
       document.getElementById('timelineCard').style.display = 'block';
     }
     
     function renderTimeline() {
       const list = document.getElementById('timelineList');
+      const groupName = document.getElementById('groupName').value.trim();
       
       if (currentTimeline.length === 0) {
         list.innerHTML = '<div class="empty-state"><p>No milestones for this timeline</p></div>';
@@ -520,8 +657,9 @@
       
       list.innerHTML = currentTimeline.map(item => `
         <div class="timeline-item">
+          <div class="timeline-color ${item.colorClass}"></div>
           <div class="timeline-date">${formatDate(item.date)}</div>
-          <div class="timeline-task">${item.task}</div>
+          <div class="timeline-task">${item.task} for ${groupName}</div>
           <span class="timeline-badge ${item.isPost ? 'badge-post' : 'badge-pre'}">${item.isPost ? 'Post' : 'Pre'}</span>
         </div>
       `).join('');
@@ -533,18 +671,21 @@
     
     function saveEvent() {
       const groupName = document.getElementById('groupName').value.trim();
+      const contactName = document.getElementById('contactName').value.trim();
       const eventDate = document.getElementById('eventDate').value;
       const eventType = document.getElementById('eventType').value;
       
       const event = {
         id: Date.now().toString(),
         groupName,
+        contactName,
         eventDate,
         eventType,
         timeline: currentTimeline.map(t => ({
           date: t.date.toISOString(),
           task: t.task,
-          isPost: t.isPost
+          isPost: t.isPost,
+          category: t.category
         })),
         createdAt: new Date().toISOString()
       };
@@ -553,8 +694,8 @@
       saveData();
       renderEvents();
       
-      // Clear form
       document.getElementById('groupName').value = '';
+      document.getElementById('contactName').value = '';
       document.getElementById('eventDate').value = '';
       document.getElementById('timelineCard').style.display = 'none';
       
@@ -608,9 +749,31 @@
       }
     }
     
+    function setSortBy(sort) {
+      sortBy = sort;
+      document.getElementById('sortName').classList.toggle('active', sort === 'name');
+      document.getElementById('sortDate').classList.toggle('active', sort === 'date');
+      renderEvents();
+    }
+    
     function renderEvents() {
       const container = document.getElementById('eventsList');
       const wrapper = document.getElementById('savedEvents');
+      const searchTerm = document.getElementById('searchInput')?.value.toLowerCase() || '';
+      
+      let filteredEvents = events.filter(e => 
+        e.groupName.toLowerCase().includes(searchTerm) ||
+        (e.contactName && e.contactName.toLowerCase().includes(searchTerm))
+      );
+      
+      // Sort
+      filteredEvents.sort((a, b) => {
+        if (sortBy === 'name') {
+          return a.groupName.localeCompare(b.groupName);
+        } else {
+          return new Date(a.eventDate) - new Date(b.eventDate);
+        }
+      });
       
       if (events.length === 0) {
         wrapper.classList.remove('has-events');
@@ -618,17 +781,23 @@
       }
       
       wrapper.classList.add('has-events');
-      container.innerHTML = events.map(e => `
+      
+      if (filteredEvents.length === 0) {
+        container.innerHTML = '<div class="empty-state"><p>No events match your search</p></div>';
+        return;
+      }
+      
+      container.innerHTML = filteredEvents.map(e => `
         <div class="event-row">
           <div class="event-info">
             <h3>${e.groupName}</h3>
             <p>
               <span class="event-type-badge ${e.eventType === 'wedding' ? 'badge-wedding' : 'badge-event'}">${e.eventType === 'wedding' ? '💒 Wedding' : '🎉 Event'}</span>
               ${formatDate(new Date(e.eventDate))} · ${e.timeline.length} milestones
+              ${e.contactName ? `· Contact: ${e.contactName}` : ''}
             </p>
           </div>
           <div class="event-actions">
-            <button class="btn" onclick="downloadEventICS('${e.id}')">📅 .ics</button>
             <button class="btn" onclick="deleteEvent('${e.id}')">🗑️</button>
           </div>
         </div>
@@ -642,83 +811,20 @@
       renderEvents();
     }
     
-    // ICS Generation
-    function generateICSContent(eventList) {
-      let ics = `BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//The Compton//CSM Timeline//EN
-CALSCALE:GREGORIAN
-METHOD:PUBLISH
-X-WR-CALNAME:CSM Deadlines
-`;
-      
-      eventList.forEach(event => {
-        event.timeline.forEach(item => {
-          const date = new Date(item.date);
-          const dateStr = date.toISOString().split('T')[0].replace(/-/g, '');
-          const uid = `${event.id}-${dateStr}-${item.task.replace(/\s/g, '')}@compton`;
-          
-          ics += `BEGIN:VEVENT
-DTSTART;VALUE=DATE:${dateStr}
-SUMMARY:${event.groupName}: ${item.task}
-DESCRIPTION:${event.eventType === 'wedding' ? 'Wedding' : 'Event'} - ${item.task}
-UID:${uid}
-END:VEVENT
-`;
-        });
+    // Calendar subscription
+    const CALENDAR_FEED_URL = 'https://jwxdolqobyspalaymkyq.supabase.co/functions/v1/calendar-feed';
+    
+    function subscribeToCalendar() {
+      const webcalUrl = CALENDAR_FEED_URL.replace('https://', 'webcal://');
+      window.open(webcalUrl, '_blank');
+    }
+    
+    function copyCalendarLink() {
+      navigator.clipboard.writeText(CALENDAR_FEED_URL).then(() => {
+        const confirm = document.getElementById('copyConfirm');
+        confirm.style.display = 'block';
+        setTimeout(() => confirm.style.display = 'none', 3000);
       });
-      
-      ics += 'END:VCALENDAR';
-      return ics;
-    }
-    
-    function downloadICS() {
-      const groupName = document.getElementById('groupName').value.trim();
-      const eventDate = document.getElementById('eventDate').value;
-      const eventType = document.getElementById('eventType').value;
-      
-      const tempEvent = {
-        id: 'temp',
-        groupName,
-        eventDate,
-        eventType,
-        timeline: currentTimeline.map(t => ({
-          date: t.date.toISOString(),
-          task: t.task,
-          isPost: t.isPost
-        }))
-      };
-      
-      const ics = generateICSContent([tempEvent]);
-      downloadFile(ics, `${groupName.replace(/\s/g, '_')}_timeline.ics`);
-    }
-    
-    function downloadEventICS(id) {
-      const event = events.find(e => e.id === id);
-      if (!event) return;
-      
-      const ics = generateICSContent([event]);
-      downloadFile(ics, `${event.groupName.replace(/\s/g, '_')}_timeline.ics`);
-    }
-    
-    function downloadAllICS() {
-      if (events.length === 0) {
-        alert('No events to download');
-        return;
-      }
-      
-      const ics = generateICSContent(events);
-      downloadFile(ics, 'CSM_All_Events.ics');
-    }
-    
-    function downloadFile(content, filename) {
-      const blob = new Blob([content], { type: 'text/calendar' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
     }
     
     // Listen for theme changes from parent (if embedded in Kelphi)
@@ -733,23 +839,6 @@ END:VEVENT
         }
       }
     });
-    
-    // Calendar subscription
-    const CALENDAR_FEED_URL = 'https://jwxdolqobyspalaymkyq.supabase.co/functions/v1/calendar-feed';
-    
-    function subscribeToCalendar() {
-      // webcal:// protocol opens in default calendar app
-      const webcalUrl = CALENDAR_FEED_URL.replace('https://', 'webcal://');
-      window.open(webcalUrl, '_blank');
-    }
-    
-    function copyCalendarLink() {
-      navigator.clipboard.writeText(CALENDAR_FEED_URL).then(() => {
-        const confirm = document.getElementById('copyConfirm');
-        confirm.style.display = 'block';
-        setTimeout(() => confirm.style.display = 'none', 3000);
-      });
-    }
     
     // Init
     renderEvents();
