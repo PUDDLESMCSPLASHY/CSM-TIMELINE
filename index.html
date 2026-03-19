@@ -572,6 +572,17 @@
       return 'Planning';
     }
     
+    // Adjust date to next Monday if it falls on a weekend
+    function adjustToBusinessDay(date) {
+      const day = date.getDay();
+      if (day === 0) { // Sunday -> Monday
+        date.setDate(date.getDate() + 1);
+      } else if (day === 6) { // Saturday -> Monday
+        date.setDate(date.getDate() + 2);
+      }
+      return date;
+    }
+    
     // Milestone rules (days before event, negative = after)
     const MILESTONES = {
       wedding: [
@@ -626,12 +637,16 @@
         if (m.minLead && daysOut < m.minLead) return;
         if (m.maxLead && daysOut > m.maxLead) return;
         
-        const milestoneDate = new Date(eventDateObj);
+        let milestoneDate = new Date(eventDateObj);
         milestoneDate.setDate(milestoneDate.getDate() - m.days);
+        
+        // Adjust to business day (move weekend to Monday)
+        milestoneDate = adjustToBusinessDay(milestoneDate);
         
         if (milestoneDate < today && m.days > 0) return;
         
         currentTimeline.push({
+          id: Date.now() + Math.random(),
           date: milestoneDate,
           task: m.task,
           isPost: m.days < 0,
@@ -655,14 +670,20 @@
         return;
       }
       
-      list.innerHTML = currentTimeline.map(item => `
+      list.innerHTML = currentTimeline.map((item, idx) => `
         <div class="timeline-item">
           <div class="timeline-color ${item.colorClass}"></div>
-          <div class="timeline-date">${formatDate(item.date)}</div>
+          <input type="date" class="form-input timeline-date-input" value="${item.date.toISOString().split('T')[0]}" onchange="updateTimelineDate(${idx}, this.value)" style="width: 140px; padding: 6px 8px; font-size: 0.85rem;">
           <div class="timeline-task">${item.task} for ${groupName}</div>
           <span class="timeline-badge ${item.isPost ? 'badge-post' : 'badge-pre'}">${item.isPost ? 'Post' : 'Pre'}</span>
         </div>
       `).join('');
+    }
+    
+    function updateTimelineDate(idx, newDate) {
+      if (currentTimeline[idx]) {
+        currentTimeline[idx].date = new Date(newDate + 'T12:00:00');
+      }
     }
     
     function formatDate(date) {
