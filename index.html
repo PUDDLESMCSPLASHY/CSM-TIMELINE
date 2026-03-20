@@ -427,19 +427,36 @@
     }
     
     .archived-event-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
       padding: 10px 12px;
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 6px;
       margin-bottom: 8px;
       opacity: 0.7;
+      cursor: pointer;
+      transition: all 0.2s;
     }
     
     .archived-event-row:hover {
       opacity: 1;
+      border-color: var(--orange);
+    }
+    
+    .archived-event-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .archived-timeline {
+      display: none;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    
+    .archived-event-row.expanded .archived-timeline {
+      display: block;
     }
     
     body.light-mode .archive-tab, body.light-mode .archive-panel {
@@ -637,7 +654,7 @@
     <div class="card" id="savedEvents">
       <div class="card-header">📁 Saved Events</div>
       <div class="search-bar">
-        <input type="text" class="search-input" id="searchInput" placeholder="Search events..." oninput="renderEvents()">
+        <input type="text" class="search-input" id="searchInput" placeholder="Search events..." oninput="renderEvents(); renderArchivedEvents();">
       </div>
       <div class="sort-controls">
         <span style="font-size: 0.75rem; color: var(--muted); margin-right: 8px;">Sort by:</span>
@@ -1137,31 +1154,54 @@
     });
     
     function renderArchivedEvents() {
-      const archivedEvents = events.filter(e => e.archived);
+      const searchTerm = document.getElementById('searchInput')?.value.toLowerCase() || '';
+      const allArchived = events.filter(e => e.archived);
+      const archivedEvents = allArchived.filter(e => 
+        e.groupName.toLowerCase().includes(searchTerm) ||
+        (e.contactName && e.contactName.toLowerCase().includes(searchTerm))
+      );
       const container = document.getElementById('archivedEventsList');
       const tab = document.getElementById('archiveTab');
       const countSpan = document.getElementById('archiveCount');
       
-      countSpan.textContent = archivedEvents.length;
+      countSpan.textContent = allArchived.length;
       
-      if (archivedEvents.length === 0) {
+      if (allArchived.length === 0) {
         tab.style.display = 'none';
         return;
       }
       
       tab.style.display = 'flex';
       
+      if (archivedEvents.length === 0 && searchTerm) {
+        container.innerHTML = '<div style="padding: 12px; color: var(--muted); font-size: 0.85rem;">No archived events match your search</div>';
+        return;
+      }
+      
       container.innerHTML = archivedEvents.map(e => `
-        <div class="archived-event-row">
-          <div class="event-info">
-            <h3 style="font-size: 0.9rem;">${e.groupName}</h3>
-            <p style="font-size: 0.75rem;">
-              ${formatDate(new Date(e.eventDate))} · ${e.timeline.length} milestones
-            </p>
+        <div class="archived-event-row" id="archived-${e.id}" onclick="toggleArchivedExpand('${e.id}', event)">
+          <div class="archived-event-header">
+            <div class="event-info">
+              <h3 style="font-size: 0.9rem;">${e.groupName}</h3>
+              <p style="font-size: 0.75rem;">
+                ${formatDate(new Date(e.eventDate))} · ${e.timeline.length} milestones
+              </p>
+            </div>
+            <div class="event-actions" onclick="event.stopPropagation()">
+              <button class="btn" onclick="unarchiveEvent('${e.id}')" title="Restore" style="padding: 4px 10px; font-size: 0.75rem;">↩️ Restore</button>
+              <button class="btn" onclick="deleteEvent('${e.id}')" title="Delete" style="padding: 4px 10px; font-size: 0.75rem;">🗑️</button>
+            </div>
           </div>
-          <div class="event-actions">
-            <button class="btn" onclick="unarchiveEvent('${e.id}')" title="Restore" style="padding: 4px 10px; font-size: 0.75rem;">↩️ Restore</button>
-            <button class="btn" onclick="deleteEvent('${e.id}')" title="Delete" style="padding: 4px 10px; font-size: 0.75rem;">🗑️</button>
+          <div class="archived-timeline">
+            ${e.timeline.map((t, idx) => {
+              const isCompleted = t.completed || new Date(t.date) < new Date();
+              return `
+              <div class="event-timeline-item" style="opacity: 0.7;">
+                <div class="timeline-color ${getColorClass(t.task)}"></div>
+                <span style="font-size: 0.8rem; min-width: 90px;">${formatDate(new Date(t.date))}</span>
+                <span style="flex: 1; font-size: 0.8rem; ${isCompleted ? 'text-decoration: line-through;' : ''}">${t.task}</span>
+              </div>
+            `}).join('')}
           </div>
         </div>
       `).join('');
@@ -1175,6 +1215,14 @@
       panel.classList.toggle('hidden');
       tab.classList.toggle('collapsed');
       arrow.textContent = panel.classList.contains('hidden') ? '▼' : '▲';
+    }
+    
+    function toggleArchivedExpand(id, evt) {
+      if (evt.target.tagName === 'BUTTON') return;
+      const row = document.getElementById(`archived-${id}`);
+      if (row) {
+        row.classList.toggle('expanded');
+      }
     }
     
     // Init
