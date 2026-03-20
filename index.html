@@ -552,6 +552,30 @@
     #savedEvents { display: none; }
     #savedEvents.has-events { display: block; }
     
+    #eventsList {
+      max-height: 340px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    
+    #eventsList::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    #eventsList::-webkit-scrollbar-track {
+      background: var(--border);
+      border-radius: 3px;
+    }
+    
+    #eventsList::-webkit-scrollbar-thumb {
+      background: var(--muted);
+      border-radius: 3px;
+    }
+    
+    #eventsList::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
+    }
+    
     /* Color legend */
     .color-legend {
       display: flex;
