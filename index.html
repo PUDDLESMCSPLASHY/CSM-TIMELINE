@@ -388,6 +388,49 @@
       background: #f8f9fa;
     }
     
+    /* Collapsible Sync Panel */
+    .sync-tab {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--muted);
+      transition: all 0.2s;
+      margin-top: 20px;
+    }
+    
+    .sync-tab:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    
+    .sync-tab.collapsed {
+      border-radius: 8px;
+    }
+    
+    .sync-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      padding: 20px;
+      display: block;
+    }
+    
+    .sync-panel.hidden {
+      display: none;
+    }
+    
+    body.light-mode .sync-tab, body.light-mode .sync-panel {
+      background: #fff;
+    }
+    
     .event-info h3 {
       font-size: 0.95rem;
       font-weight: 600;
@@ -542,9 +585,12 @@
       <div id="eventsList"></div>
     </div>
     
-    <!-- Subscribe Card -->
-    <div class="card">
-      <div class="card-header">🔗 Live Calendar Sync</div>
+    <!-- Subscribe Tab (Collapsible) -->
+    <div class="sync-tab" onclick="toggleSyncPanel()">
+      <span>🔗 Live Calendar Sync</span>
+      <span id="syncArrow">▲</span>
+    </div>
+    <div class="sync-panel" id="syncPanel">
       <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 16px;">Subscribe once in Outlook and new events will sync automatically!</p>
       <div class="btn-group" style="margin-top: 0;">
         <button class="btn btn-primary" onclick="subscribeToCalendar()">📅 Subscribe in Outlook</button>
@@ -967,6 +1013,21 @@
         setTimeout(() => confirm.style.display = 'none', 3000);
       });
     }
+    
+    function toggleSyncPanel() {
+      const panel = document.getElementById('syncPanel');
+      const tab = document.querySelector('.sync-tab');
+      const arrow = document.getElementById('syncArrow');
+      
+      panel.classList.toggle('hidden');
+      tab.classList.toggle('collapsed');
+      arrow.textContent = panel.classList.contains('hidden') ? '▼' : '▲';
+    }
+    
+    // Start collapsed
+    document.addEventListener('DOMContentLoaded', () => {
+      toggleSyncPanel();
+    });
     
     // Listen for theme changes from parent (if embedded in Kelphi)
     window.addEventListener('message', function(event) {
