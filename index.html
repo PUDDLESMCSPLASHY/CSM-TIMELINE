@@ -388,6 +388,68 @@
       background: #f8f9fa;
     }
     
+    /* Collapsible Archive Panel */
+    .archive-tab {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--muted);
+      transition: all 0.2s;
+      margin-top: 20px;
+    }
+    
+    .archive-tab:hover {
+      color: var(--orange);
+      border-color: var(--orange);
+    }
+    
+    .archive-tab.collapsed {
+      border-radius: 8px;
+    }
+    
+    .archive-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      padding: 16px;
+    }
+    
+    .archive-panel.hidden {
+      display: none;
+    }
+    
+    .archived-event-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 8px;
+      opacity: 0.7;
+    }
+    
+    .archived-event-row:hover {
+      opacity: 1;
+    }
+    
+    body.light-mode .archive-tab, body.light-mode .archive-panel {
+      background: #fff;
+    }
+    
+    body.light-mode .archived-event-row {
+      background: #f8f9fa;
+    }
+    
     /* Collapsible Sync Panel */
     .sync-tab {
       display: flex;
@@ -583,6 +645,15 @@
         <button class="sort-btn" id="sortDate" onclick="setSortBy('date')">Event Date</button>
       </div>
       <div id="eventsList"></div>
+    </div>
+    
+    <!-- Archived Events (Collapsible) -->
+    <div class="archive-tab" id="archiveTab" onclick="toggleArchivePanel()" style="display: none;">
+      <span>📁 Archived Events (<span id="archiveCount">0</span>)</span>
+      <span id="archiveArrow">▼</span>
+    </div>
+    <div class="archive-panel hidden" id="archivePanel">
+      <div id="archivedEventsList"></div>
     </div>
     
     <!-- Subscribe Tab (Collapsible) -->
@@ -876,8 +947,9 @@
       const searchTerm = document.getElementById('searchInput')?.value.toLowerCase() || '';
       
       let filteredEvents = events.filter(e => 
-        e.groupName.toLowerCase().includes(searchTerm) ||
-        (e.contactName && e.contactName.toLowerCase().includes(searchTerm))
+        !e.archived &&
+        (e.groupName.toLowerCase().includes(searchTerm) ||
+        (e.contactName && e.contactName.toLowerCase().includes(searchTerm)))
       );
       
       // Sort
@@ -913,6 +985,7 @@
               </p>
             </div>
             <div class="event-actions" onclick="event.stopPropagation()">
+              <button class="btn" onclick="archiveEvent('${e.id}')" title="Archive">📁</button>
               <button class="btn" onclick="deleteEvent('${e.id}')" title="Delete">🗑️</button>
             </div>
           </div>
@@ -944,10 +1017,31 @@
     }
     
     function deleteEvent(id) {
-      if (!confirm('Delete this event?')) return;
+      if (!confirm('Delete this event permanently?')) return;
       events = events.filter(e => e.id !== id);
       saveData();
       renderEvents();
+      renderArchivedEvents();
+    }
+    
+    function archiveEvent(id) {
+      const event = events.find(e => e.id === id);
+      if (event) {
+        event.archived = true;
+        saveData();
+        renderEvents();
+        renderArchivedEvents();
+      }
+    }
+    
+    function unarchiveEvent(id) {
+      const event = events.find(e => e.id === id);
+      if (event) {
+        event.archived = false;
+        saveData();
+        renderEvents();
+        renderArchivedEvents();
+      }
     }
     
     function toggleEventExpand(id, evt) {
@@ -1042,8 +1136,50 @@
       }
     });
     
+    function renderArchivedEvents() {
+      const archivedEvents = events.filter(e => e.archived);
+      const container = document.getElementById('archivedEventsList');
+      const tab = document.getElementById('archiveTab');
+      const countSpan = document.getElementById('archiveCount');
+      
+      countSpan.textContent = archivedEvents.length;
+      
+      if (archivedEvents.length === 0) {
+        tab.style.display = 'none';
+        return;
+      }
+      
+      tab.style.display = 'flex';
+      
+      container.innerHTML = archivedEvents.map(e => `
+        <div class="archived-event-row">
+          <div class="event-info">
+            <h3 style="font-size: 0.9rem;">${e.groupName}</h3>
+            <p style="font-size: 0.75rem;">
+              ${formatDate(new Date(e.eventDate))} · ${e.timeline.length} milestones
+            </p>
+          </div>
+          <div class="event-actions">
+            <button class="btn" onclick="unarchiveEvent('${e.id}')" title="Restore" style="padding: 4px 10px; font-size: 0.75rem;">↩️ Restore</button>
+            <button class="btn" onclick="deleteEvent('${e.id}')" title="Delete" style="padding: 4px 10px; font-size: 0.75rem;">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    function toggleArchivePanel() {
+      const panel = document.getElementById('archivePanel');
+      const tab = document.getElementById('archiveTab');
+      const arrow = document.getElementById('archiveArrow');
+      
+      panel.classList.toggle('hidden');
+      tab.classList.toggle('collapsed');
+      arrow.textContent = panel.classList.contains('hidden') ? '▼' : '▲';
+    }
+    
     // Init
     renderEvents();
+    renderArchivedEvents();
     loadFromCloud();
   </script>
 </body>
