@@ -871,17 +871,24 @@
             </div>
           </div>
           <div class="event-timeline">
-            ${e.timeline.map((t, idx) => `
-              <div class="event-timeline-item">
+            ${e.timeline.map((t, idx) => {
+              const isPast = new Date(t.date) < new Date();
+              const isCompleted = t.completed || (isPast && t.completed !== false);
+              return `
+              <div class="event-timeline-item ${isCompleted ? 'completed' : ''}">
+                <input type="checkbox" ${isCompleted ? 'checked' : ''} 
+                  onchange="toggleTaskComplete('${e.id}', ${idx}, this.checked)"
+                  onclick="event.stopPropagation()"
+                  style="width: 18px; height: 18px; cursor: pointer;">
                 <div class="timeline-color ${getColorClass(t.task)}"></div>
                 <input type="date" class="form-input" value="${t.date.split('T')[0]}" 
                   onchange="updateEventDate('${e.id}', ${idx}, this.value)"
                   onclick="event.stopPropagation()"
                   style="width: 130px; padding: 4px 8px; font-size: 0.8rem;">
-                <span style="flex: 1;">${t.task}</span>
+                <span style="flex: 1; ${isCompleted ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${t.task}</span>
                 <span class="timeline-badge ${t.isPost ? 'badge-post' : 'badge-pre'}" style="font-size: 0.6rem;">${t.isPost ? 'Post' : 'Pre'}</span>
               </div>
-            `).join('')}
+            `}).join('')}
             <div class="event-timeline-actions" onclick="event.stopPropagation()">
               <button class="btn btn-primary" onclick="saveEventChanges('${e.id}')" style="padding: 6px 12px; font-size: 0.8rem;">💾 Save Changes</button>
             </div>
@@ -911,6 +918,18 @@
       const event = events.find(e => e.id === eventId);
       if (event && event.timeline[timelineIdx]) {
         event.timeline[timelineIdx].date = new Date(newDate + 'T12:00:00').toISOString();
+        // If date is changed to future, uncheck completed
+        if (new Date(newDate) > new Date()) {
+          event.timeline[timelineIdx].completed = false;
+        }
+      }
+    }
+    
+    function toggleTaskComplete(eventId, timelineIdx, isChecked) {
+      const event = events.find(e => e.id === eventId);
+      if (event && event.timeline[timelineIdx]) {
+        event.timeline[timelineIdx].completed = isChecked;
+        renderEvents();
       }
     }
     
