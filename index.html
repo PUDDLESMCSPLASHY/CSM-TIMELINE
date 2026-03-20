@@ -329,14 +329,59 @@
     
     /* Events List */
     .event-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
       padding: 12px 16px;
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 6px;
       margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .event-row:hover {
+      border-color: var(--accent);
+    }
+    
+    .event-row-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .event-row.expanded {
+      border-color: var(--accent);
+    }
+    
+    .event-timeline {
+      display: none;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    
+    .event-row.expanded .event-timeline {
+      display: block;
+    }
+    
+    .event-timeline-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      font-size: 0.85rem;
+    }
+    
+    .event-timeline-item .timeline-color {
+      width: 4px;
+      height: 24px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    
+    .event-timeline-actions {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
     }
     
     body.light-mode .event-row {
@@ -504,8 +549,10 @@
       <div class="btn-group" style="margin-top: 0;">
         <button class="btn btn-primary" onclick="subscribeToCalendar()">📅 Subscribe in Outlook</button>
         <button class="btn" onclick="copyCalendarLink()">📋 Copy Link</button>
+        <button class="btn" id="forceSyncBtn" onclick="forceSync()">🔄 Force Sync</button>
       </div>
       <p id="copyConfirm" style="color: var(--accent2); font-size: 0.8rem; margin-top: 12px; display: none;">✓ Link copied!</p>
+      <p style="color: var(--muted); font-size: 0.75rem; margin-top: 8px;">After syncing, refresh your Outlook calendar to see changes.</p>
     </div>
   </div>
   
@@ -809,17 +856,35 @@
       }
       
       container.innerHTML = filteredEvents.map(e => `
-        <div class="event-row">
-          <div class="event-info">
-            <h3>${e.groupName}</h3>
-            <p>
-              <span class="event-type-badge ${e.eventType === 'wedding' ? 'badge-wedding' : 'badge-event'}">${e.eventType === 'wedding' ? '💒 Wedding' : '🎉 Event'}</span>
-              ${formatDate(new Date(e.eventDate))} · ${e.timeline.length} milestones
-              ${e.contactName ? `· Contact: ${e.contactName}` : ''}
-            </p>
+        <div class="event-row" id="event-${e.id}" onclick="toggleEventExpand('${e.id}', event)">
+          <div class="event-row-header">
+            <div class="event-info">
+              <h3>${e.groupName}</h3>
+              <p>
+                <span class="event-type-badge ${e.eventType === 'wedding' ? 'badge-wedding' : 'badge-event'}">${e.eventType === 'wedding' ? '💒 Wedding' : '🎉 Event'}</span>
+                ${formatDate(new Date(e.eventDate))} · ${e.timeline.length} milestones
+                ${e.contactName ? `· Contact: ${e.contactName}` : ''}
+              </p>
+            </div>
+            <div class="event-actions" onclick="event.stopPropagation()">
+              <button class="btn" onclick="deleteEvent('${e.id}')" title="Delete">🗑️</button>
+            </div>
           </div>
-          <div class="event-actions">
-            <button class="btn" onclick="deleteEvent('${e.id}')">🗑️</button>
+          <div class="event-timeline">
+            ${e.timeline.map((t, idx) => `
+              <div class="event-timeline-item">
+                <div class="timeline-color ${getColorClass(t.task)}"></div>
+                <input type="date" class="form-input" value="${t.date.split('T')[0]}" 
+                  onchange="updateEventDate('${e.id}', ${idx}, this.value)"
+                  onclick="event.stopPropagation()"
+                  style="width: 130px; padding: 4px 8px; font-size: 0.8rem;">
+                <span style="flex: 1;">${t.task}</span>
+                <span class="timeline-badge ${t.isPost ? 'badge-post' : 'badge-pre'}" style="font-size: 0.6rem;">${t.isPost ? 'Post' : 'Pre'}</span>
+              </div>
+            `).join('')}
+            <div class="event-timeline-actions" onclick="event.stopPropagation()">
+              <button class="btn btn-primary" onclick="saveEventChanges('${e.id}')" style="padding: 6px 12px; font-size: 0.8rem;">💾 Save Changes</button>
+            </div>
           </div>
         </div>
       `).join('');
@@ -830,6 +895,42 @@
       events = events.filter(e => e.id !== id);
       saveData();
       renderEvents();
+    }
+    
+    function toggleEventExpand(id, evt) {
+      // Don't toggle if clicking on inputs or buttons
+      if (evt.target.tagName === 'INPUT' || evt.target.tagName === 'BUTTON') return;
+      
+      const row = document.getElementById(`event-${id}`);
+      if (row) {
+        row.classList.toggle('expanded');
+      }
+    }
+    
+    function updateEventDate(eventId, timelineIdx, newDate) {
+      const event = events.find(e => e.id === eventId);
+      if (event && event.timeline[timelineIdx]) {
+        event.timeline[timelineIdx].date = new Date(newDate + 'T12:00:00').toISOString();
+      }
+    }
+    
+    function saveEventChanges(eventId) {
+      saveData();
+      alert('Changes saved! Refresh your Outlook calendar to see updates.');
+    }
+    
+    async function forceSync() {
+      const btn = document.getElementById('forceSyncBtn');
+      btn.textContent = '⏳ Syncing...';
+      btn.disabled = true;
+      
+      await syncToCloud();
+      
+      btn.textContent = '✓ Synced!';
+      setTimeout(() => {
+        btn.textContent = '🔄 Force Sync';
+        btn.disabled = false;
+      }, 2000);
     }
     
     // Calendar subscription
