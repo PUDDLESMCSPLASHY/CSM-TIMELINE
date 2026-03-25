@@ -610,6 +610,55 @@
       text-align: center;
     }
     
+    /* Duplicate Warning Modal */
+    .duplicate-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+    .duplicate-modal {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 400px;
+      text-align: center;
+    }
+    .duplicate-modal-icon {
+      font-size: 3rem;
+      margin-bottom: 12px;
+    }
+    .duplicate-modal h3 {
+      margin-bottom: 8px;
+      color: var(--orange);
+    }
+    .duplicate-modal p {
+      color: var(--muted);
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .duplicate-modal-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+    
+    /* Event highlight animation */
+    .event-highlight {
+      animation: highlightPulse 0.5s ease-in-out 3;
+    }
+    @keyframes highlightPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(0,217,255,0); }
+      50% { box-shadow: 0 0 0 4px rgba(0,217,255,0.4); }
+    }
+    
     .event-actions {
       display: flex;
       gap: 8px;
@@ -932,6 +981,14 @@
       const lead = kelphiLeads.find(l => l.id === leadId);
       if (!lead) return;
       
+      // Check for existing timeline with this lead
+      const existingEvent = events.find(e => e.linkedLeadId === leadId && !e.archived);
+      if (existingEvent) {
+        hideAutocomplete();
+        showDuplicateWarning(existingEvent, lead);
+        return;
+      }
+      
       linkedLead = lead;
       
       // Auto-fill fields
@@ -952,6 +1009,47 @@
       document.getElementById('kelphiLinked').style.display = 'flex';
       
       hideAutocomplete();
+    }
+    
+    // Show duplicate warning modal
+    function showDuplicateWarning(existingEvent, lead) {
+      const eventDate = new Date(existingEvent.eventDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const modal = document.createElement('div');
+      modal.id = 'duplicateModal';
+      modal.innerHTML = `
+        <div class="duplicate-modal-overlay" onclick="closeDuplicateModal()">
+          <div class="duplicate-modal" onclick="event.stopPropagation()">
+            <div class="duplicate-modal-icon">⚠️</div>
+            <h3>Timeline Already Exists</h3>
+            <p><strong>${lead.bookingName}</strong> already has a timeline for <strong>${eventDate}</strong>.</p>
+            <div class="duplicate-modal-buttons">
+              <button class="btn" onclick="closeDuplicateModal()">Cancel</button>
+              <button class="btn btn-primary" onclick="viewExistingEvent('${existingEvent.id}')">View Existing Timeline</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    
+    function closeDuplicateModal() {
+      const modal = document.getElementById('duplicateModal');
+      if (modal) modal.remove();
+      document.getElementById('groupName').value = '';
+    }
+    
+    function viewExistingEvent(eventId) {
+      closeDuplicateModal();
+      document.getElementById('groupName').value = '';
+      // Scroll to and expand the existing event
+      const eventEl = document.getElementById('event-' + eventId);
+      if (eventEl) {
+        eventEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        eventEl.classList.add('event-highlight');
+        setTimeout(() => eventEl.classList.remove('event-highlight'), 2000);
+        // Expand it
+        toggleEventExpand(eventId, { target: eventEl });
+      }
     }
     
     // Unlink from Kelphi
