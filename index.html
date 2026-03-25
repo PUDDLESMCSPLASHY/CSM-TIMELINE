@@ -537,6 +537,79 @@
     .badge-rooms { background: rgba(179,102,255,0.15); color: var(--purple); }
     .badge-both { background: rgba(0,217,143,0.15); color: var(--accent2); }
     
+    /* Kelphi Link Indicator */
+    .kelphi-linked {
+      background: rgba(0,217,143,0.1);
+      border: 1px solid var(--accent2);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 16px;
+      font-size: 0.85rem;
+      color: var(--accent2);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .kelphi-linked .unlink-btn {
+      margin-left: auto;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .kelphi-linked .unlink-btn:hover {
+      background: rgba(255,255,255,0.1);
+      color: var(--danger);
+    }
+    
+    /* Autocomplete Dropdown */
+    .autocomplete-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      max-height: 250px;
+      overflow-y: auto;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .autocomplete-dropdown.show { display: block; }
+    .autocomplete-item {
+      padding: 10px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .autocomplete-item:last-child { border-bottom: none; }
+    .autocomplete-item:hover { background: rgba(0,217,255,0.1); }
+    .autocomplete-item-name {
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    .autocomplete-item-meta {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .autocomplete-item-match {
+      background: rgba(0,217,255,0.25);
+      border-radius: 2px;
+      padding: 0 2px;
+    }
+    .autocomplete-empty {
+      padding: 12px 14px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    
     .event-actions {
       display: flex;
       gap: 8px;
@@ -633,10 +706,15 @@
     <!-- Input Form -->
     <div class="card">
       <div class="card-header">📝 New Event</div>
+      <div id="kelphiLinked" class="kelphi-linked" style="display: none;">
+        📎 Linked to Kelphi · <span id="linkedLeadName"></span>
+        <button onclick="unlinkKelphi()" class="unlink-btn">✕</button>
+      </div>
       <div class="form-row">
-        <div class="form-group">
+        <div class="form-group" style="position: relative;">
           <label class="form-label">Booking Name</label>
-          <input type="text" class="form-input" id="groupName" placeholder="Sammy's Birthday Party">
+          <input type="text" class="form-input" id="groupName" placeholder="Start typing to search Kelphi..." autocomplete="off">
+          <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
         </div>
         <div class="form-group">
           <label class="form-label">Contact Name</label>
@@ -753,6 +831,165 @@
     let events = JSON.parse(localStorage.getItem('csmEvents')) || [];
     let currentTimeline = [];
     let sortBy = 'name';
+    
+    // Kelphi integration
+    let kelphiLeads = [];
+    let linkedLead = null;
+    let autocompleteDebounce = null;
+    
+    // Fetch Kelphi leads on load
+    async function fetchKelphiLeads() {
+      if (!supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from('leads')
+          .select('id, bookingName, account, contactFirstName, contactLastName, arrival, departure, cutoffDate, type, status')
+          .not('status', 'in', '("lost","cancelled")')
+          .order('bookingName');
+        if (!error && data) {
+          kelphiLeads = data;
+          console.log(`Loaded ${kelphiLeads.length} leads from Kelphi`);
+        }
+      } catch (e) {
+        console.error('Failed to fetch Kelphi leads:', e);
+      }
+    }
+    
+    // Fuzzy search - matches any substring (case-insensitive)
+    function fuzzyMatch(query, text) {
+      if (!text) return { match: false };
+      const q = query.toLowerCase();
+      const t = text.toLowerCase();
+      const index = t.indexOf(q);
+      if (index === -1) return { match: false };
+      return { 
+        match: true, 
+        index,
+        highlighted: text.substring(0, index) + 
+          '<span class="autocomplete-item-match">' + text.substring(index, index + query.length) + '</span>' + 
+          text.substring(index + query.length)
+      };
+    }
+    
+    // Search leads by booking name or account
+    function searchLeads(query) {
+      if (!query || query.length < 2) return [];
+      return kelphiLeads
+        .map(lead => {
+          const nameMatch = fuzzyMatch(query, lead.bookingName);
+          const accountMatch = fuzzyMatch(query, lead.account);
+          if (nameMatch.match || accountMatch.match) {
+            return {
+              ...lead,
+              displayName: nameMatch.match ? nameMatch.highlighted : lead.bookingName,
+              matchType: nameMatch.match ? 'name' : 'account'
+            };
+          }
+          return null;
+        })
+        .filter(Boolean)
+        .slice(0, 8); // Limit to 8 results
+    }
+    
+    // Show autocomplete dropdown
+    function showAutocomplete(results) {
+      const dropdown = document.getElementById('autocompleteDropdown');
+      if (results.length === 0) {
+        dropdown.innerHTML = '<div class="autocomplete-empty">No matching Kelphi leads</div>';
+        dropdown.classList.add('show');
+        return;
+      }
+      
+      dropdown.innerHTML = results.map(lead => {
+        const contact = [lead.contactFirstName, lead.contactLastName].filter(Boolean).join(' ');
+        const dateStr = lead.arrival ? new Date(lead.arrival + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+        return `
+          <div class="autocomplete-item" onclick="selectKelphiLead('${lead.id}')">
+            <div class="autocomplete-item-name">${lead.displayName}</div>
+            <div class="autocomplete-item-meta">
+              ${contact ? contact + ' · ' : ''}${dateStr}${lead.cutoffDate ? ' · Cutoff: ' + new Date(lead.cutoffDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+      dropdown.classList.add('show');
+    }
+    
+    // Hide autocomplete
+    function hideAutocomplete() {
+      document.getElementById('autocompleteDropdown').classList.remove('show');
+    }
+    
+    // Select a lead from autocomplete
+    function selectKelphiLead(leadId) {
+      const lead = kelphiLeads.find(l => l.id === leadId);
+      if (!lead) return;
+      
+      linkedLead = lead;
+      
+      // Auto-fill fields
+      document.getElementById('groupName').value = lead.bookingName || '';
+      document.getElementById('contactName').value = [lead.contactFirstName, lead.contactLastName].filter(Boolean).join(' ');
+      if (lead.arrival) {
+        document.getElementById('eventDate').value = lead.arrival;
+      }
+      
+      // Set event type based on lead type
+      const typeMap = { 'rooms': 'rooms-only', 'events': 'non-wedding', 'both': 'rooms-events' };
+      if (lead.type && typeMap[lead.type]) {
+        document.getElementById('eventType').value = typeMap[lead.type];
+      }
+      
+      // Show linked indicator
+      document.getElementById('linkedLeadName').textContent = lead.bookingName;
+      document.getElementById('kelphiLinked').style.display = 'flex';
+      
+      hideAutocomplete();
+    }
+    
+    // Unlink from Kelphi
+    function unlinkKelphi() {
+      linkedLead = null;
+      document.getElementById('kelphiLinked').style.display = 'none';
+    }
+    
+    // Setup autocomplete listener
+    function setupAutocomplete() {
+      const input = document.getElementById('groupName');
+      
+      input.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        
+        // Clear linked state when typing
+        if (linkedLead && query !== linkedLead.bookingName) {
+          linkedLead = null;
+          document.getElementById('kelphiLinked').style.display = 'none';
+        }
+        
+        clearTimeout(autocompleteDebounce);
+        autocompleteDebounce = setTimeout(() => {
+          if (query.length >= 2) {
+            const results = searchLeads(query);
+            showAutocomplete(results);
+          } else {
+            hideAutocomplete();
+          }
+        }, 150);
+      });
+      
+      input.addEventListener('blur', () => {
+        // Delay to allow click on dropdown
+        setTimeout(hideAutocomplete, 200);
+      });
+      
+      input.addEventListener('focus', () => {
+        const query = input.value.trim();
+        if (query.length >= 2) {
+          const results = searchLeads(query);
+          showAutocomplete(results);
+        }
+      });
+    }
     
     // Milestone colors
     const MILESTONE_COLORS = {
@@ -906,10 +1143,16 @@
         if (m.maxLead && daysOut > m.maxLead) return;
         
         let milestoneDate = new Date(eventDateObj);
-        milestoneDate.setDate(milestoneDate.getDate() - m.days);
         
-        // Adjust to business day (move weekend to Monday)
-        milestoneDate = adjustToBusinessDay(milestoneDate);
+        // Check if this is a Cut-Off Date task and we have a linked lead with cutoffDate
+        if ((m.task.toLowerCase().includes('cut-off') || m.task.toLowerCase().includes('cutoff')) && linkedLead && linkedLead.cutoffDate) {
+          // Use the actual cutoff date from Kelphi
+          milestoneDate = new Date(linkedLead.cutoffDate + 'T12:00:00');
+        } else {
+          milestoneDate.setDate(milestoneDate.getDate() - m.days);
+          // Adjust to business day (move weekend to Monday)
+          milestoneDate = adjustToBusinessDay(milestoneDate);
+        }
         
         if (milestoneDate < today && m.days > 0) return;
         
@@ -919,7 +1162,8 @@
           task: m.task,
           isPost: m.days < 0,
           colorClass: getColorClass(m.task),
-          category: getColorCategory(m.task)
+          category: getColorCategory(m.task),
+          fromKelphi: (m.task.toLowerCase().includes('cut-off') || m.task.toLowerCase().includes('cutoff')) && linkedLead && linkedLead.cutoffDate
         });
       });
       
@@ -970,11 +1214,14 @@
         contactName,
         eventDate,
         eventType,
+        linkedLeadId: linkedLead ? linkedLead.id : null,
+        linkedLeadName: linkedLead ? linkedLead.bookingName : null,
         timeline: currentTimeline.map(t => ({
           date: t.date.toISOString(),
           task: t.task,
           isPost: t.isPost,
-          category: t.category
+          category: t.category,
+          fromKelphi: t.fromKelphi || false
         })),
         createdAt: new Date().toISOString()
       };
@@ -983,10 +1230,13 @@
       saveData();
       renderEvents();
       
+      // Reset form and linked state
       document.getElementById('groupName').value = '';
       document.getElementById('contactName').value = '';
       document.getElementById('eventDate').value = '';
       document.getElementById('timelineCard').style.display = 'none';
+      document.getElementById('kelphiLinked').style.display = 'none';
+      linkedLead = null;
       
       alert('Event saved!');
     }
@@ -1082,7 +1332,7 @@
         <div class="event-row" id="event-${e.id}" onclick="toggleEventExpand('${e.id}', event)">
           <div class="event-row-header">
             <div class="event-info">
-              <h3>${e.groupName}</h3>
+              <h3>${e.groupName} ${e.linkedLeadId ? '<span style="color: var(--accent2); font-size: 0.8rem; font-weight: normal;">📎 Kelphi</span>' : ''}</h3>
               <p>
                 <span class="event-type-badge ${getEventBadgeClass(e.eventType)}">${getEventTypeLabel(e.eventType)}</span>
                 ${formatDate(new Date(e.eventDate))} · ${e.timeline.length} milestones
@@ -1226,6 +1476,8 @@
     // Start collapsed
     document.addEventListener('DOMContentLoaded', () => {
       toggleSyncPanel();
+      fetchKelphiLeads();
+      setupAutocomplete();
     });
     
     // Listen for theme changes from parent (if embedded in Kelphi)
