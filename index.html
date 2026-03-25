@@ -659,6 +659,22 @@
       50% { box-shadow: 0 0 0 4px rgba(0,217,255,0.4); }
     }
     
+    /* Needs Review Badge */
+    .needs-review-badge {
+      background: rgba(255,170,0,0.15);
+      color: var(--orange);
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 8px;
+      animation: reviewPulse 2s ease-in-out infinite;
+    }
+    @keyframes reviewPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    
     .event-actions {
       display: flex;
       gap: 8px;
@@ -903,12 +919,128 @@
             ['tentative', 'contract-out', 'definite'].includes(l.status)
           );
           console.log(`Loaded ${kelphiLeads.length} leads from Kelphi (tentative/contract-out/definite only)`);
+          
+          // Auto-create timelines for new Definite leads
+          autoCreateTimelinesForDefinites();
         } else if (error) {
           console.error('Supabase error:', error);
         }
       } catch (e) {
         console.error('Failed to fetch Kelphi leads:', e);
       }
+    }
+    
+    // Auto-create timelines for Definite leads that don't have one yet
+    function autoCreateTimelinesForDefinites() {
+      // Get or set the auto-sync start date (only process leads that went Definite after this)
+      let autoSyncStartDate = localStorage.getItem('csmAutoSyncStartDate');
+      if (!autoSyncStartDate) {
+        autoSyncStartDate = new Date().toISOString();
+        localStorage.setItem('csmAutoSyncStartDate', autoSyncStartDate);
+        console.log('Auto-sync initialized. Only new Definites from now on will be auto-added.');
+        return; // First run - don't process existing Definites
+      }
+      
+      const startDate = new Date(autoSyncStartDate);
+      let newTimelinesCreated = 0;
+      
+      kelphiLeads
+        .filter(lead => lead.status === 'definite')
+        .filter(lead => {
+          // Check if definiteDate is after our start date
+          if (!lead.definiteDate) return false;
+          return new Date(lead.definiteDate) > startDate;
+        })
+        .filter(lead => {
+          // Check if timeline already exists for this lead
+          return !events.some(e => e.linkedLeadId === lead.id);
+        })
+        .forEach(lead => {
+          // Create timeline for this lead
+          const timeline = generateTimelineForLead(lead);
+          if (timeline) {
+            const event = {
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              groupName: lead.bookingName || '',
+              contactName: [lead.contactFirstName, lead.contactLastName].filter(Boolean).join(' '),
+              eventDate: lead.arrival || '',
+              eventType: getEventTypeFromLead(lead),
+              linkedLeadId: lead.id,
+              linkedLeadName: lead.bookingName,
+              needsReview: true,
+              autoCreated: true,
+              timeline: timeline,
+              createdAt: new Date().toISOString()
+            };
+            events.push(event);
+            newTimelinesCreated++;
+            console.log(`Auto-created timeline for: ${lead.bookingName}`);
+          }
+        });
+      
+      if (newTimelinesCreated > 0) {
+        saveData();
+        renderEvents();
+        console.log(`Auto-created ${newTimelinesCreated} new timeline(s) for Definite bookings`);
+      }
+    }
+    
+    // Get event type from lead type
+    function getEventTypeFromLead(lead) {
+      const typeMap = { 'rooms': 'rooms-only', 'events': 'non-wedding', 'both': 'rooms-events' };
+      return typeMap[lead.type] || 'non-wedding';
+    }
+    
+    // Generate timeline milestones for a lead (used by auto-create)
+    function generateTimelineForLead(lead) {
+      if (!lead.arrival) return null;
+      
+      const eventDateObj = new Date(lead.arrival + 'T12:00:00');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const daysOut = Math.floor((eventDateObj - today) / (1000 * 60 * 60 * 24));
+      const eventType = getEventTypeFromLead(lead);
+      
+      let milestoneSet;
+      if (eventType === 'rooms-only' && daysOut < 45) {
+        milestoneSet = MILESTONES['rooms-only-short'];
+      } else if (daysOut <= 21 && !eventType.startsWith('rooms')) {
+        milestoneSet = MILESTONES['short-lead'];
+      } else {
+        milestoneSet = MILESTONES[eventType];
+      }
+      
+      if (!milestoneSet) return null;
+      
+      const timeline = [];
+      milestoneSet.forEach(m => {
+        if (m.minLead && daysOut < m.minLead) return;
+        if (m.maxLead && daysOut > m.maxLead) return;
+        
+        let milestoneDate = new Date(eventDateObj);
+        
+        // Use actual cutoff date from lead if available
+        if ((m.task.toLowerCase().includes('cut-off') || m.task.toLowerCase().includes('cutoff')) && lead.cutoffDate) {
+          milestoneDate = new Date(lead.cutoffDate + 'T12:00:00');
+        } else {
+          milestoneDate.setDate(milestoneDate.getDate() - m.days);
+          milestoneDate = adjustToBusinessDay(milestoneDate);
+        }
+        
+        if (milestoneDate < today && m.days > 0) return;
+        
+        timeline.push({
+          date: milestoneDate.toISOString(),
+          task: m.task,
+          isPost: m.days < 0,
+          category: getColorCategory(m.task),
+          fromKelphi: (m.task.toLowerCase().includes('cut-off') || m.task.toLowerCase().includes('cutoff')) && lead.cutoffDate
+        });
+      });
+      
+      timeline.sort((a, b) => new Date(a.date) - new Date(b.date));
+      return timeline;
     }
     
     // Fuzzy search - matches any substring (case-insensitive)
@@ -1437,7 +1569,7 @@
         <div class="event-row" id="event-${e.id}" onclick="toggleEventExpand('${e.id}', event)">
           <div class="event-row-header">
             <div class="event-info">
-              <h3>${e.groupName} ${e.linkedLeadId ? '<span style="color: var(--accent2); font-size: 0.8rem; font-weight: normal;">📎 Kelphi</span>' : ''}</h3>
+              <h3>${e.groupName} ${e.linkedLeadId ? '<span style="color: var(--accent2); font-size: 0.8rem; font-weight: normal;">📎 Kelphi</span>' : ''} ${e.needsReview ? '<span class="needs-review-badge">🆕 Review</span>' : ''}</h3>
               <p>
                 <span class="event-type-badge ${getEventBadgeClass(e.eventType)}">${getEventTypeLabel(e.eventType)}</span>
                 ${formatDate(new Date(e.eventDate))} · ${e.timeline.length} milestones
@@ -1510,7 +1642,20 @@
       
       const row = document.getElementById(`event-${id}`);
       if (row) {
+        const isExpanding = !row.classList.contains('expanded');
         row.classList.toggle('expanded');
+        
+        // Clear needsReview flag when expanded
+        if (isExpanding) {
+          const event = events.find(e => e.id === id);
+          if (event && event.needsReview) {
+            event.needsReview = false;
+            saveData();
+            // Update the display to remove the badge
+            const badge = row.querySelector('.needs-review-badge');
+            if (badge) badge.remove();
+          }
+        }
       }
     }
     
