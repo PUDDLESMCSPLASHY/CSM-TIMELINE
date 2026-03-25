@@ -326,6 +326,8 @@
     .color-menu { background: #10b981; }
     .color-count { background: #ef4444; }
     .color-thankyou { background: #ec4899; }
+    .color-cutoff { background: #f97316; }
+    .color-resume { background: #06b6d4; }
     
     /* Events List */
     .event-row {
@@ -532,6 +534,8 @@
     
     .badge-wedding { background: rgba(255,170,0,0.15); color: var(--orange); }
     .badge-event { background: rgba(0,217,255,0.15); color: var(--accent); }
+    .badge-rooms { background: rgba(179,102,255,0.15); color: var(--purple); }
+    .badge-both { background: rgba(0,217,143,0.15); color: var(--accent2); }
     
     .event-actions {
       display: flex;
@@ -647,8 +651,11 @@
         <div class="form-group">
           <label class="form-label">Event Type</label>
           <select class="form-select" id="eventType">
-            <option value="non-wedding">Non-Wedding Event</option>
+            <option value="non-wedding">Event Only</option>
             <option value="wedding">Wedding</option>
+            <option value="rooms-only">Rooms Only</option>
+            <option value="rooms-events">Rooms + Events</option>
+            <option value="rooms-wedding">Rooms + Wedding</option>
           </select>
         </div>
       </div>
@@ -666,6 +673,8 @@
         <div class="legend-item"><div class="legend-color color-tasting"></div> Tasting</div>
         <div class="legend-item"><div class="legend-color color-beo"></div> BEO Draft</div>
         <div class="legend-item"><div class="legend-color color-menu"></div> Menu Due</div>
+        <div class="legend-item"><div class="legend-color color-cutoff"></div> Cut-Off</div>
+        <div class="legend-item"><div class="legend-color color-resume"></div> Resume Due</div>
         <div class="legend-item"><div class="legend-color color-count"></div> Guest Count</div>
         <div class="legend-item"><div class="legend-color color-thankyou"></div> Thank You</div>
       </div>
@@ -763,7 +772,27 @@
       if (taskLower.includes('menu')) return 'color-menu';
       if (taskLower.includes('count') || taskLower.includes('guest')) return 'color-count';
       if (taskLower.includes('thank')) return 'color-thankyou';
+      if (taskLower.includes('cut-off') || taskLower.includes('cutoff')) return 'color-cutoff';
+      if (taskLower.includes('resume')) return 'color-resume';
       return 'color-planning';
+    }
+    
+    function getEventBadgeClass(eventType) {
+      if (eventType === 'wedding' || eventType === 'rooms-wedding') return 'badge-wedding';
+      if (eventType === 'rooms-only') return 'badge-rooms';
+      if (eventType === 'rooms-events') return 'badge-both';
+      return 'badge-event';
+    }
+    
+    function getEventTypeLabel(eventType) {
+      const labels = {
+        'wedding': '💒 Wedding',
+        'non-wedding': '🎉 Event',
+        'rooms-only': '🏨 Rooms Only',
+        'rooms-events': '🎉 Rooms + Events',
+        'rooms-wedding': '💒 Rooms + Wedding'
+      };
+      return labels[eventType] || '🎉 Event';
     }
     
     function getColorCategory(task) {
@@ -774,6 +803,8 @@
       if (taskLower.includes('menu')) return 'Menu';
       if (taskLower.includes('count') || taskLower.includes('guest')) return 'GuestCount';
       if (taskLower.includes('thank')) return 'ThankYou';
+      if (taskLower.includes('cut-off') || taskLower.includes('cutoff')) return 'CutOff';
+      if (taskLower.includes('resume')) return 'Resume';
       return 'Planning';
     }
     
@@ -806,6 +837,36 @@
         { days: 14, task: 'Final Guaranteed Guest Count', minLead: 1 },
         { days: -1, task: 'Send Thank You Email', minLead: 1 }
       ],
+      'rooms-only': [
+        { days: 56, task: 'Schedule Planning Call', minLead: 45 },
+        { days: 31, task: 'Cut-Off Date', minLead: 45 },
+        { days: 21, task: 'Group Resume Due', minLead: 45 },
+        { days: -1, task: 'Send Thank You Email', minLead: 1 }
+      ],
+      'rooms-only-short': [
+        { days: 15, task: 'Cut-Off Date', minLead: 1 },
+        { days: 12, task: 'Group Resume Due', minLead: 1 },
+        { days: -1, task: 'Send Thank You Email', minLead: 1 }
+      ],
+      'rooms-events': [
+        { days: 56, task: 'Schedule Planning Call', minLead: 45 },
+        { days: 35, task: 'BEO Draft Due', minLead: 35 },
+        { days: 31, task: 'Cut-Off Date', minLead: 45 },
+        { days: 21, task: 'Menu Selections Due', minLead: 21 },
+        { days: 21, task: 'Group Resume Due', minLead: 45 },
+        { days: 14, task: 'Final Guaranteed Guest Count', minLead: 1 },
+        { days: -1, task: 'Send Thank You Email', minLead: 1 }
+      ],
+      'rooms-wedding': [
+        { days: 84, task: 'Schedule Planning Call', minLead: 84 },
+        { days: 56, task: 'Tasting', minLead: 56 },
+        { days: 35, task: 'BEO Draft Due', minLead: 35 },
+        { days: 31, task: 'Cut-Off Date', minLead: 45 },
+        { days: 21, task: 'Menu Selections Due', minLead: 21 },
+        { days: 21, task: 'Group Resume Due', minLead: 45 },
+        { days: 14, task: 'Final Guaranteed Guest Count', minLead: 1 },
+        { days: -1, task: 'Send Thank You Email', minLead: 1 }
+      ],
       'short-lead': [
         { days: 14, task: 'Final Guest Count + Confirm Menu', minLead: 1 },
         { days: -1, task: 'Send Thank You Email', minLead: 1 }
@@ -830,7 +891,9 @@
       const daysOut = Math.floor((eventDateObj - today) / (1000 * 60 * 60 * 24));
       
       let milestoneSet;
-      if (daysOut <= 21) {
+      if (eventType === 'rooms-only' && daysOut < 45) {
+        milestoneSet = MILESTONES['rooms-only-short'];
+      } else if (daysOut <= 21 && !eventType.startsWith('rooms')) {
         milestoneSet = MILESTONES['short-lead'];
       } else {
         milestoneSet = MILESTONES[eventType];
@@ -1021,7 +1084,7 @@
             <div class="event-info">
               <h3>${e.groupName}</h3>
               <p>
-                <span class="event-type-badge ${e.eventType === 'wedding' ? 'badge-wedding' : 'badge-event'}">${e.eventType === 'wedding' ? '💒 Wedding' : '🎉 Event'}</span>
+                <span class="event-type-badge ${getEventBadgeClass(e.eventType)}">${getEventTypeLabel(e.eventType)}</span>
                 ${formatDate(new Date(e.eventDate))} · ${e.timeline.length} milestones
                 ${e.contactName ? `· Contact: ${e.contactName}` : ''}
               </p>
