@@ -844,11 +844,13 @@
         const { data, error } = await supabaseClient
           .from('leads')
           .select('id, bookingName, account, contactFirstName, contactLastName, arrival, departure, cutoffDate, type, status')
-          .not('status', 'in', '("lost","cancelled")')
+          .in('status', ['tentative', 'contract-out', 'definite'])
           .order('bookingName');
         if (!error && data) {
           kelphiLeads = data;
-          console.log(`Loaded ${kelphiLeads.length} leads from Kelphi`);
+          console.log(`Loaded ${kelphiLeads.length} leads from Kelphi (tentative/contract-out/definite only)`);
+        } else if (error) {
+          console.error('Supabase error:', error);
         }
       } catch (e) {
         console.error('Failed to fetch Kelphi leads:', e);
