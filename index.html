@@ -841,13 +841,18 @@
     async function fetchKelphiLeads() {
       if (!supabaseClient) return;
       try {
+        // Kelphi stores all data in a single row with id='main', leads are in data.leads
         const { data, error } = await supabaseClient
           .from('leads')
-          .select('id, bookingName, account, contactFirstName, contactLastName, arrival, departure, cutoffDate, type, status')
-          .in('status', ['tentative', 'contract-out', 'definite'])
-          .order('bookingName');
-        if (!error && data) {
-          kelphiLeads = data;
+          .select('data')
+          .eq('id', 'main')
+          .single();
+        
+        if (!error && data && data.data && data.data.leads) {
+          // Filter to only tentative, contract-out, definite statuses
+          kelphiLeads = data.data.leads.filter(l => 
+            ['tentative', 'contract-out', 'definite'].includes(l.status)
+          );
           console.log(`Loaded ${kelphiLeads.length} leads from Kelphi (tentative/contract-out/definite only)`);
         } else if (error) {
           console.error('Supabase error:', error);
