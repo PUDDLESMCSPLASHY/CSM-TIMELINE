@@ -910,6 +910,39 @@
         return false;
       });
     }
+
+    // Auto-archive: timeline rolls off once the latest relevant date (event date OR
+    // the last post-event task) has been past for a full day. 1-day grace lets the
+    // team finish post-event tasks without the row disappearing the moment they're due.
+    function shouldAutoArchive(event) {
+      if (event.archived) return false;
+      if (!event.eventDate) return false;
+      let latestMs = new Date(event.eventDate + 'T23:59:59').getTime();
+      for (const t of (event.timeline || [])) {
+        const taskMs = new Date(t.date).getTime();
+        if (!isNaN(taskMs) && taskMs > latestMs) latestMs = taskMs;
+      }
+      const ONE_DAY = 24 * 60 * 60 * 1000;
+      return Date.now() - latestMs > ONE_DAY;
+    }
+
+    async function runAutoArchive() {
+      let archivedCount = 0;
+      for (const ev of events) {
+        if (shouldAutoArchive(ev)) {
+          ev.archived = true;
+          ev.autoArchived = true;
+          ev.archivedAt = new Date().toISOString();
+          archivedCount++;
+          console.log(`Auto-archived past event: ${ev.groupName} (${ev.eventDate})`);
+        }
+      }
+      if (archivedCount > 0) {
+        saveData();
+        renderEvents();
+        renderArchivedEvents();
+      }
+    }
     
     // Kelphi integration
     let kelphiLeads = [];
@@ -1542,6 +1575,7 @@
           }
           renderEvents();
           renderArchivedEvents();
+          await runAutoArchive();
         } else {
           await syncToCloud();
         }
