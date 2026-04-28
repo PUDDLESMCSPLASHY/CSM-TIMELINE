@@ -896,6 +896,20 @@
     let events = JSON.parse(localStorage.getItem('csmEvents')) || [];
     let currentTimeline = [];
     let sortBy = 'name';
+
+    // Dedup helper — matches an existing active timeline by linkedLeadId OR by name+date.
+    // Name match is case-insensitive and trims whitespace.
+    function findExistingTimeline(groupName, eventDate, linkedLeadId) {
+      const nameLower = (groupName || '').trim().toLowerCase();
+      return events.find(e => {
+        if (e.archived) return false;
+        if (linkedLeadId && e.linkedLeadId === linkedLeadId) return true;
+        if (nameLower && eventDate &&
+            (e.groupName || '').trim().toLowerCase() === nameLower &&
+            e.eventDate === eventDate) return true;
+        return false;
+      });
+    }
     
     // Kelphi integration
     let kelphiLeads = [];
@@ -952,8 +966,8 @@
           return new Date(lead.definiteDate) > startDate;
         })
         .filter(lead => {
-          // Check if timeline already exists for this lead
-          return !events.some(e => e.linkedLeadId === lead.id);
+          // Skip if we already have an active timeline matching by leadId OR by name+date
+          return !findExistingTimeline(lead.bookingName, lead.arrival, lead.id);
         })
         .forEach(lead => {
           // Create timeline for this lead
@@ -1113,8 +1127,8 @@
       const lead = kelphiLeads.find(l => l.id === leadId);
       if (!lead) return;
       
-      // Check for existing timeline with this lead
-      const existingEvent = events.find(e => e.linkedLeadId === leadId && !e.archived);
+      // Check for existing timeline by leadId OR by name+date
+      const existingEvent = findExistingTimeline(lead.bookingName, lead.arrival, leadId);
       if (existingEvent) {
         hideAutocomplete();
         showDuplicateWarning(existingEvent, lead);
@@ -1144,10 +1158,12 @@
     }
     
     // Show duplicate warning modal
-    function showDuplicateWarning(existingEvent, lead) {
+    // opts.keepForm = true → don't clear the form on close (used by manual saveEvent path)
+    function showDuplicateWarning(existingEvent, lead, opts = {}) {
       const eventDate = new Date(existingEvent.eventDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       const modal = document.createElement('div');
       modal.id = 'duplicateModal';
+      if (opts.keepForm) modal.dataset.keepForm = '1';
       modal.innerHTML = `
         <div class="duplicate-modal-overlay" onclick="closeDuplicateModal()">
           <div class="duplicate-modal" onclick="event.stopPropagation()">
@@ -1163,11 +1179,12 @@
       `;
       document.body.appendChild(modal);
     }
-    
+
     function closeDuplicateModal() {
       const modal = document.getElementById('duplicateModal');
+      const keepForm = modal?.dataset.keepForm === '1';
       if (modal) modal.remove();
-      document.getElementById('groupName').value = '';
+      if (!keepForm) document.getElementById('groupName').value = '';
     }
     
     function viewExistingEvent(eventId) {
@@ -1444,7 +1461,14 @@
       const contactName = document.getElementById('contactName').value.trim();
       const eventDate = document.getElementById('eventDate').value;
       const eventType = document.getElementById('eventType').value;
-      
+
+      // Dedup guard: block save if an active timeline already exists for this booking+date
+      const existing = findExistingTimeline(groupName, eventDate, linkedLead?.id);
+      if (existing) {
+        showDuplicateWarning(existing, { bookingName: groupName }, { keepForm: true });
+        return;
+      }
+
       const event = {
         id: Date.now().toString(),
         groupName,
