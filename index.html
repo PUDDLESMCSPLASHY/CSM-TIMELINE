@@ -1787,12 +1787,14 @@
     
     function archiveEvent(id) {
       const event = events.find(e => e.id === id);
-      if (event) {
-        event.archived = true;
-        saveData();
-        renderEvents();
-        renderArchivedEvents();
-      }
+      if (!event) return;
+      const dateStr = event.eventDate ? new Date(event.eventDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+      const msg = `Archive "${event.groupName}"${dateStr ? ` (${dateStr})` : ''}?\n\nYou can restore it later from the Archived Events panel.`;
+      if (!confirm(msg)) return;
+      event.archived = true;
+      saveData();
+      renderEvents();
+      renderArchivedEvents();
     }
     
     function unarchiveEvent(id) {
