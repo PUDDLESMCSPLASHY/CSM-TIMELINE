@@ -778,7 +778,7 @@
       <div class="form-row">
         <div class="form-group" style="position: relative;">
           <label class="form-label">Booking Name</label>
-          <input type="text" class="form-input" id="groupName" placeholder="Start typing to search Kelphi..." autocomplete="off">
+          <input type="text" class="form-input" id="groupName" placeholder="Start typing to search existing bookings" autocomplete="off">
           <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
         </div>
         <div class="form-group">
@@ -1171,12 +1171,35 @@
     // Search leads by booking name or account
     function searchLeads(query) {
       if (!query || query.length < 2) return [];
-      return kelphiLeads
+
+      // Existing CSM Timeline events get top billing — these are the most
+      // likely "is this already saved?" matches and prevent accidental dupes.
+      const existingMatches = events
+        .filter(e => !e.archived)
+        .map(e => {
+          const nameMatch = fuzzyMatch(query, e.groupName);
+          if (!nameMatch.match) return null;
+          return {
+            type: 'event',
+            id: e.id,
+            displayName: nameMatch.highlighted,
+            bookingName: e.groupName,
+            arrival: e.eventDate,
+            contact: e.contactName || '',
+            cutoffDate: e.cutoffDate || null,
+            seller: e.seller || ''
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 5);
+
+      const leadMatches = kelphiLeads
         .map(lead => {
           const nameMatch = fuzzyMatch(query, lead.bookingName);
           const accountMatch = fuzzyMatch(query, lead.account);
           if (nameMatch.match || accountMatch.match) {
             return {
+              type: 'lead',
               ...lead,
               displayName: nameMatch.match ? nameMatch.highlighted : lead.bookingName,
               matchType: nameMatch.match ? 'name' : 'account'
@@ -1185,19 +1208,36 @@
           return null;
         })
         .filter(Boolean)
-        .slice(0, 8); // Limit to 8 results
+        .slice(0, 8 - existingMatches.length);
+
+      return [...existingMatches, ...leadMatches];
     }
-    
+
     // Show autocomplete dropdown
     function showAutocomplete(results) {
       const dropdown = document.getElementById('autocompleteDropdown');
       if (results.length === 0) {
-        dropdown.innerHTML = '<div class="autocomplete-empty">No matching Kelphi leads</div>';
+        dropdown.innerHTML = '<div class="autocomplete-empty">No matching bookings</div>';
         dropdown.classList.add('show');
         return;
       }
-      
-      dropdown.innerHTML = results.map(lead => {
+
+      dropdown.innerHTML = results.map(item => {
+        if (item.type === 'event') {
+          const dateStr = item.arrival ? new Date(item.arrival + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+          return `
+            <div class="autocomplete-item" onclick="viewExistingEvent('${item.id}')">
+              <div class="autocomplete-item-name">
+                <span style="background: var(--accent-soft, #DCE8DC); color: var(--accent, #00522A); font-size: 0.7rem; padding: 1px 6px; border-radius: 4px; margin-right: 6px; vertical-align: middle;">📁 Already saved</span>
+                ${item.displayName}
+              </div>
+              <div class="autocomplete-item-meta">
+                ${item.contact ? item.contact + ' · ' : ''}${dateStr}${item.seller ? ' · ' + item.seller : ''}
+              </div>
+            </div>
+          `;
+        }
+        const lead = item;
         const contact = [lead.contactFirstName, lead.contactLastName].filter(Boolean).join(' ');
         const dateStr = lead.arrival ? new Date(lead.arrival + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
         return `
