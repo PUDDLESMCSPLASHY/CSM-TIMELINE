@@ -793,13 +793,29 @@
         </div>
         <div class="form-group">
           <label class="form-label">Event Type</label>
-          <select class="form-select" id="eventType">
+          <select class="form-select" id="eventType" onchange="toggleCutoffField()">
             <option value="non-wedding">Event Only</option>
             <option value="wedding">Wedding</option>
             <option value="rooms-only">Rooms Only</option>
             <option value="rooms-events">Rooms + Events</option>
             <option value="rooms-wedding">Rooms + Wedding</option>
           </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Seller</label>
+          <select class="form-select" id="seller">
+            <option value="">— Select seller —</option>
+            <option value="Amber Tull">Amber Tull</option>
+            <option value="Bethany Stewart">Bethany Stewart</option>
+            <option value="Kelsey McIntyre">Kelsey McIntyre</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group" id="cutoffDateGroup" style="display: none;">
+          <label class="form-label">Cutoff Date</label>
+          <input type="date" class="form-input" id="cutoffDate">
         </div>
       </div>
       <div class="btn-group">
@@ -828,7 +844,7 @@
     
     <!-- Saved Events -->
     <div class="card" id="savedEvents">
-      <div class="card-header">📁 Saved Events</div>
+      <div class="card-header">📁 Saved Events (<span id="savedCount">0</span>)</div>
       <div class="search-bar">
         <input type="text" class="search-input" id="searchInput" placeholder="Search events..." oninput="renderEvents(); renderArchivedEvents();">
       </div>
@@ -965,10 +981,8 @@
           kelphiLeads = data.data.leads.filter(l => 
             ['tentative', 'contract-out', 'definite'].includes(l.status)
           );
-          console.log(`Loaded ${kelphiLeads.length} leads from Kelphi (tentative/contract-out/definite only)`);
-          
-          // Auto-create timelines for new Definite leads
-          autoCreateTimelinesForDefinites();
+          console.log(`Loaded ${kelphiLeads.length} leads from Kelphi (tentative/contract-out/definite only) — used for search autocomplete only`);
+          // Auto-create from Kelphi disabled — Delphi → CSM sync handles new Definite bookings now.
         } else if (error) {
           console.error('Supabase error:', error);
         }
@@ -1089,7 +1103,55 @@
       timeline.sort((a, b) => new Date(a.date) - new Date(b.date));
       return timeline;
     }
-    
+
+    // Generate a timeline for a Delphi-pushed event (no Kelphi lead, just the event fields).
+    function generateTimelineForDelphiEvent(e) {
+      if (!e.eventDate || !e.eventType) return [];
+      const eventDateObj = new Date(e.eventDate + 'T12:00:00');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const daysOut = Math.floor((eventDateObj - today) / (1000 * 60 * 60 * 24));
+      const eventType = e.eventType;
+
+      let milestoneSet;
+      if (eventType === 'rooms-only' && daysOut < 45) {
+        milestoneSet = MILESTONES['rooms-only-short'];
+      } else if (daysOut <= 21 && !eventType.startsWith('rooms')) {
+        milestoneSet = MILESTONES['short-lead'];
+      } else {
+        milestoneSet = MILESTONES[eventType];
+      }
+      if (!milestoneSet) return [];
+
+      const timeline = [];
+      milestoneSet.forEach(m => {
+        if (m.minLead && daysOut < m.minLead) return;
+        if (m.maxLead && daysOut > m.maxLead) return;
+
+        let milestoneDate = new Date(eventDateObj);
+        const isCutoffTask = m.task.toLowerCase().includes('cut-off') || m.task.toLowerCase().includes('cutoff');
+        if (isCutoffTask && e.cutoffDate) {
+          milestoneDate = new Date(e.cutoffDate + 'T12:00:00');
+        } else {
+          milestoneDate.setDate(milestoneDate.getDate() - m.days);
+          milestoneDate = adjustToBusinessDay(milestoneDate);
+        }
+
+        if (milestoneDate < today && m.days > 0) return;
+
+        timeline.push({
+          date: milestoneDate.toISOString(),
+          task: m.task,
+          isPost: m.days < 0,
+          category: getColorCategory(m.task),
+          fromKelphi: false
+        });
+      });
+
+      timeline.sort((a, b) => new Date(a.date) - new Date(b.date));
+      return timeline;
+    }
+
     // Fuzzy search - matches any substring (case-insensitive)
     function fuzzyMatch(query, text) {
       if (!text) return { match: false };
@@ -1397,12 +1459,19 @@
       ]
     };
     
+    function toggleCutoffField() {
+      const eventType = document.getElementById('eventType').value;
+      const group = document.getElementById('cutoffDateGroup');
+      if (group) group.style.display = eventType.startsWith('rooms') ? 'block' : 'none';
+    }
+
     function generateTimeline() {
       const groupName = document.getElementById('groupName').value.trim();
       const contactName = document.getElementById('contactName').value.trim();
       const eventDate = document.getElementById('eventDate').value;
       const eventType = document.getElementById('eventType').value;
-      
+      const manualCutoff = document.getElementById('cutoffDate')?.value || '';
+
       if (!groupName || !eventDate) {
         alert('Please enter booking name and event date');
         return;
@@ -1431,18 +1500,26 @@
         
         let milestoneDate = new Date(eventDateObj);
         
-        // Check if this is a Cut-Off Date task and we have a linked lead with cutoffDate
-        if ((m.task.toLowerCase().includes('cut-off') || m.task.toLowerCase().includes('cutoff')) && linkedLead && linkedLead.cutoffDate) {
-          // Use the actual cutoff date from Kelphi
-          milestoneDate = new Date(linkedLead.cutoffDate + 'T12:00:00');
+        const isCutoffTask = m.task.toLowerCase().includes('cut-off') || m.task.toLowerCase().includes('cutoff');
+        let cutoffSource = null;
+        if (isCutoffTask) {
+          if (linkedLead && linkedLead.cutoffDate) {
+            milestoneDate = new Date(linkedLead.cutoffDate + 'T12:00:00');
+            cutoffSource = 'kelphi';
+          } else if (manualCutoff) {
+            milestoneDate = new Date(manualCutoff + 'T12:00:00');
+            cutoffSource = 'manual';
+          } else {
+            milestoneDate.setDate(milestoneDate.getDate() - m.days);
+            milestoneDate = adjustToBusinessDay(milestoneDate);
+          }
         } else {
           milestoneDate.setDate(milestoneDate.getDate() - m.days);
-          // Adjust to business day (move weekend to Monday)
           milestoneDate = adjustToBusinessDay(milestoneDate);
         }
-        
+
         if (milestoneDate < today && m.days > 0) return;
-        
+
         currentTimeline.push({
           id: Date.now() + Math.random(),
           date: milestoneDate,
@@ -1450,7 +1527,7 @@
           isPost: m.days < 0,
           colorClass: getColorClass(m.task),
           category: getColorCategory(m.task),
-          fromKelphi: (m.task.toLowerCase().includes('cut-off') || m.task.toLowerCase().includes('cutoff')) && linkedLead && linkedLead.cutoffDate
+          fromKelphi: cutoffSource === 'kelphi'
         });
       });
       
@@ -1494,6 +1571,8 @@
       const contactName = document.getElementById('contactName').value.trim();
       const eventDate = document.getElementById('eventDate').value;
       const eventType = document.getElementById('eventType').value;
+      const seller = document.getElementById('seller')?.value || '';
+      const manualCutoff = document.getElementById('cutoffDate')?.value || '';
 
       // Dedup guard: block save if an active timeline already exists for this booking+date
       const existing = findExistingTimeline(groupName, eventDate, linkedLead?.id);
@@ -1508,6 +1587,8 @@
         contactName,
         eventDate,
         eventType,
+        seller,
+        cutoffDate: eventType.startsWith('rooms') ? (manualCutoff || (linkedLead && linkedLead.cutoffDate) || null) : null,
         linkedLeadId: linkedLead ? linkedLead.id : null,
         linkedLeadName: linkedLead ? linkedLead.bookingName : null,
         timeline: currentTimeline.map(t => ({
@@ -1519,19 +1600,21 @@
         })),
         createdAt: new Date().toISOString()
       };
-      
+
       events.push(event);
       saveData();
       renderEvents();
-      
+
       // Reset form and linked state
       document.getElementById('groupName').value = '';
       document.getElementById('contactName').value = '';
       document.getElementById('eventDate').value = '';
+      if (document.getElementById('seller')) document.getElementById('seller').value = '';
+      if (document.getElementById('cutoffDate')) document.getElementById('cutoffDate').value = '';
       document.getElementById('timelineCard').style.display = 'none';
       document.getElementById('kelphiLinked').style.display = 'none';
       linkedLead = null;
-      
+
       alert('Event saved!');
     }
     
@@ -1573,6 +1656,22 @@
           } else {
             await syncToCloud();
           }
+          // Auto-fill timelines for Delphi-pushed events that arrived empty
+          let filledCount = 0;
+          events.forEach(e => {
+            if (e.fromDelphi && (!e.timeline || e.timeline.length === 0)) {
+              const generated = generateTimelineForDelphiEvent(e);
+              if (generated.length > 0) {
+                e.timeline = generated;
+                filledCount++;
+              }
+            }
+          });
+          if (filledCount > 0) {
+            console.log(`Auto-filled timelines for ${filledCount} Delphi-synced event(s)`);
+            localStorage.setItem('csmEvents', JSON.stringify(events));
+            await syncToCloud();
+          }
           renderEvents();
           renderArchivedEvents();
           await runAutoArchive();
@@ -1595,43 +1694,55 @@
       const container = document.getElementById('eventsList');
       const wrapper = document.getElementById('savedEvents');
       const searchTerm = document.getElementById('searchInput')?.value.toLowerCase() || '';
-      
-      let filteredEvents = events.filter(e => 
-        !e.archived &&
-        (e.groupName.toLowerCase().includes(searchTerm) ||
-        (e.contactName && e.contactName.toLowerCase().includes(searchTerm)))
+
+      const activeEvents = events.filter(e => !e.archived);
+      const savedCountEl = document.getElementById('savedCount');
+      if (savedCountEl) savedCountEl.textContent = activeEvents.length;
+
+      let filteredEvents = activeEvents.filter(e =>
+        (e.groupName && e.groupName.toLowerCase().includes(searchTerm)) ||
+        (e.contactName && e.contactName.toLowerCase().includes(searchTerm)) ||
+        (e.seller && e.seller.toLowerCase().includes(searchTerm))
       );
-      
+
       // Sort
       filteredEvents.sort((a, b) => {
         if (sortBy === 'name') {
-          return a.groupName.localeCompare(b.groupName);
+          return (a.groupName || '').localeCompare(b.groupName || '');
         } else {
           return new Date(a.eventDate) - new Date(b.eventDate);
         }
       });
-      
+
       if (events.length === 0) {
         wrapper.classList.remove('has-events');
         return;
       }
-      
+
       wrapper.classList.add('has-events');
-      
+
       if (filteredEvents.length === 0) {
         container.innerHTML = '<div class="empty-state"><p>No events match your search</p></div>';
         return;
       }
-      
+
+      const fmtCutoff = (iso) => {
+        if (!iso) return '';
+        const d = new Date(iso + 'T12:00:00');
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      };
+
       container.innerHTML = filteredEvents.map(e => `
         <div class="event-row" id="event-${e.id}" onclick="toggleEventExpand('${e.id}', event)">
           <div class="event-row-header">
             <div class="event-info">
-              <h3>${e.groupName} ${e.linkedLeadId ? '<span style="color: var(--accent2); font-size: 0.8rem; font-weight: normal;">📎 Kelphi</span>' : ''} ${e.needsReview ? '<span class="needs-review-badge">🆕 Review</span>' : ''}</h3>
+              <h3>${e.groupName} ${e.linkedLeadId ? '<span style="color: var(--accent2); font-size: 0.8rem; font-weight: normal;">📎 Kelphi</span>' : ''} ${e.fromDelphi ? '<span style="color: var(--accent2); font-size: 0.8rem; font-weight: normal;">🔗 Delphi</span>' : ''} ${e.needsReview ? '<span class="needs-review-badge">🆕 Review</span>' : ''}</h3>
               <p>
                 <span class="event-type-badge ${getEventBadgeClass(e.eventType)}">${getEventTypeLabel(e.eventType)}</span>
                 ${formatDate(new Date(e.eventDate))} · ${e.timeline.length} milestones
                 ${e.contactName ? `· Contact: ${e.contactName}` : ''}
+                ${e.seller ? `· Seller: ${e.seller}` : ''}
+                ${e.cutoffDate ? `· Cutoff: ${fmtCutoff(e.cutoffDate)}` : ''}
               </p>
             </div>
             <div class="event-actions" onclick="event.stopPropagation()">
