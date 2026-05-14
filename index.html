@@ -853,7 +853,8 @@
       </div>
       <div class="sort-controls">
         <span style="font-size: 0.75rem; color: var(--muted); margin-right: 8px;">Sort by:</span>
-        <button class="sort-btn active" id="sortName" onclick="setSortBy('name')">Booking Name</button>
+        <button class="sort-btn active" id="sortDefinite" onclick="setSortBy('dateDefinite')">Date Definite</button>
+        <button class="sort-btn" id="sortName" onclick="setSortBy('name')">Booking Name</button>
         <button class="sort-btn" id="sortDate" onclick="setSortBy('date')">Event Date</button>
       </div>
       <div id="eventsList"></div>
@@ -914,7 +915,7 @@
     // Local data
     let events = JSON.parse(localStorage.getItem('csmEvents')) || [];
     let currentTimeline = [];
-    let sortBy = 'name';
+    let sortBy = 'dateDefinite';
 
     // Dedup helper — matches an existing active timeline by linkedLeadId OR by name+date.
     // Name match is case-insensitive and trims whitespace.
@@ -1728,6 +1729,7 @@
     
     function setSortBy(sort) {
       sortBy = sort;
+      document.getElementById('sortDefinite').classList.toggle('active', sort === 'dateDefinite');
       document.getElementById('sortName').classList.toggle('active', sort === 'name');
       document.getElementById('sortDate').classList.toggle('active', sort === 'date');
       renderEvents();
@@ -1752,8 +1754,15 @@
       filteredEvents.sort((a, b) => {
         if (sortBy === 'name') {
           return (a.groupName || '').localeCompare(b.groupName || '');
-        } else {
+        } else if (sortBy === 'date') {
           return new Date(a.eventDate) - new Date(b.eventDate);
+        } else {
+          // dateDefinite: when the booking was added to the list (newest first).
+          // For Delphi-pushed bookings this equals the push time (≈ when it flipped Definite).
+          // For manually-added bookings it's when Arianna saved it.
+          const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return tb - ta;
         }
       });
 
@@ -1794,24 +1803,44 @@
             </div>
           </div>
           <div class="event-timeline">
+            <div class="event-timeline-item" style="background: rgba(255,255,255,0.03); padding: 6px 10px; border-radius: 6px; margin-bottom: 8px;">
+              <span style="font-size: 0.75rem; color: var(--muted); min-width: 90px;">Event Date:</span>
+              <input type="date" class="form-input" value="${e.eventDate || ''}"
+                onchange="updateBookingEventDate('${e.id}', this.value)"
+                onclick="event.stopPropagation()"
+                style="width: 150px; padding: 4px 8px; font-size: 0.8rem;">
+              <span style="flex: 1; font-size: 0.75rem; color: var(--muted);">Edits to the arrival date for this booking</span>
+            </div>
             ${e.timeline.map((t, idx) => {
               const isPast = new Date(t.date) < new Date();
               const isCompleted = t.completed || (isPast && t.completed !== false);
               return `
               <div class="event-timeline-item ${isCompleted ? 'completed' : ''}">
-                <input type="checkbox" ${isCompleted ? 'checked' : ''} 
+                <input type="checkbox" ${isCompleted ? 'checked' : ''}
                   onchange="toggleTaskComplete('${e.id}', ${idx}, this.checked)"
                   onclick="event.stopPropagation()"
                   style="width: 18px; height: 18px; cursor: pointer;">
                 <div class="timeline-color ${getColorClass(t.task)}"></div>
-                <input type="date" class="form-input" value="${t.date.split('T')[0]}" 
+                <input type="date" class="form-input" value="${t.date.split('T')[0]}"
                   onchange="updateEventDate('${e.id}', ${idx}, this.value)"
                   onclick="event.stopPropagation()"
                   style="width: 130px; padding: 4px 8px; font-size: 0.8rem;">
                 <span style="flex: 1; ${isCompleted ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${t.task}</span>
                 <span class="timeline-badge ${t.isPost ? 'badge-post' : 'badge-pre'}" style="font-size: 0.6rem;">${t.isPost ? 'Post' : 'Pre'}</span>
+                <button class="btn" onclick="removeTimelineItem('${e.id}', ${idx})" onmousedown="event.stopPropagation()" title="Remove this task" style="padding: 2px 8px; font-size: 0.85rem; line-height: 1; opacity: 0.6;">×</button>
               </div>
             `}).join('')}
+            <div class="event-timeline-item" style="background: rgba(255,255,255,0.03); padding: 8px 10px; border-radius: 6px; margin-top: 8px; flex-wrap: wrap; gap: 6px;" onclick="event.stopPropagation()">
+              <input type="text" class="form-input" id="newTask-${e.id}" placeholder="New task name"
+                style="flex: 1; min-width: 160px; padding: 4px 8px; font-size: 0.8rem;">
+              <input type="date" class="form-input" id="newTaskDate-${e.id}"
+                style="width: 140px; padding: 4px 8px; font-size: 0.8rem;">
+              <select class="form-input" id="newTaskWhen-${e.id}" style="width: 90px; padding: 4px 8px; font-size: 0.8rem;">
+                <option value="pre">Pre</option>
+                <option value="post">Post</option>
+              </select>
+              <button class="btn btn-primary" onclick="addTimelineItem('${e.id}')" style="padding: 4px 12px; font-size: 0.8rem;">+ Add Task</button>
+            </div>
             <div class="event-timeline-actions" onclick="event.stopPropagation()">
               <button class="btn btn-primary" onclick="saveEventChanges('${e.id}')" style="padding: 6px 12px; font-size: 0.8rem;">💾 Save Changes</button>
             </div>
@@ -1851,8 +1880,8 @@
     }
     
     function toggleEventExpand(id, evt) {
-      // Don't toggle if clicking on inputs or buttons
-      if (evt.target.tagName === 'INPUT' || evt.target.tagName === 'BUTTON') return;
+      // Don't toggle if clicking on inputs, selects, or buttons
+      if (['INPUT', 'BUTTON', 'SELECT', 'OPTION'].includes(evt.target.tagName)) return;
       
       const row = document.getElementById(`event-${id}`);
       if (row) {
@@ -1882,6 +1911,48 @@
           event.timeline[timelineIdx].completed = false;
         }
       }
+    }
+
+    function updateBookingEventDate(eventId, newDate) {
+      const event = events.find(e => e.id === eventId);
+      if (event && newDate) {
+        event.eventDate = newDate;
+      }
+    }
+
+    function removeTimelineItem(eventId, timelineIdx) {
+      const event = events.find(e => e.id === eventId);
+      if (!event || !event.timeline[timelineIdx]) return;
+      const taskName = event.timeline[timelineIdx].task || 'this task';
+      if (!confirm(`Remove "${taskName}" from this timeline?`)) return;
+      event.timeline.splice(timelineIdx, 1);
+      saveData();
+      renderEvents();
+    }
+
+    function addTimelineItem(eventId) {
+      const event = events.find(e => e.id === eventId);
+      if (!event) return;
+      const nameInput = document.getElementById(`newTask-${eventId}`);
+      const dateInput = document.getElementById(`newTaskDate-${eventId}`);
+      const whenInput = document.getElementById(`newTaskWhen-${eventId}`);
+      const task = (nameInput?.value || '').trim();
+      const dateVal = dateInput?.value || '';
+      if (!task) { alert('Please enter a task name.'); nameInput?.focus(); return; }
+      if (!dateVal) { alert('Please pick a due date.'); dateInput?.focus(); return; }
+      const isPost = (whenInput?.value || 'pre') === 'post';
+      event.timeline = event.timeline || [];
+      event.timeline.push({
+        date: new Date(dateVal + 'T12:00:00').toISOString(),
+        task,
+        isPost,
+        category: 'custom',
+        custom: true
+      });
+      // Keep the timeline in chronological order so it slots in naturally.
+      event.timeline.sort((a, b) => new Date(a.date) - new Date(b.date));
+      saveData();
+      renderEvents();
     }
     
     function toggleTaskComplete(eventId, timelineIdx, isChecked) {
