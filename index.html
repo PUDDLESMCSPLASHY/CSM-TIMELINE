@@ -832,11 +832,10 @@
       <div class="timeline" id="timelineList"></div>
       <div class="color-legend">
         <div class="legend-item"><div class="legend-color color-planning"></div> Planning Call</div>
-        <div class="legend-item"><div class="legend-color color-tasting"></div> Tasting</div>
-        <div class="legend-item"><div class="legend-color color-beo"></div> BEO Draft</div>
+        <div class="legend-item"><div class="legend-color color-tasting"></div> Schedule Tasting</div>
         <div class="legend-item"><div class="legend-color color-menu"></div> Menu Due</div>
         <div class="legend-item"><div class="legend-color color-cutoff"></div> Cut-Off</div>
-        <div class="legend-item"><div class="legend-color color-resume"></div> Resume Due</div>
+        <div class="legend-item"><div class="legend-color color-resume"></div> Questionnaire Due</div>
         <div class="legend-item"><div class="legend-color color-count"></div> Guest Count</div>
         <div class="legend-item"><div class="legend-color color-thankyou"></div> Thank You</div>
       </div>
@@ -1403,7 +1402,7 @@
       if (taskLower.includes('count') || taskLower.includes('guest')) return 'color-count';
       if (taskLower.includes('thank')) return 'color-thankyou';
       if (taskLower.includes('cut-off') || taskLower.includes('cutoff')) return 'color-cutoff';
-      if (taskLower.includes('resume')) return 'color-resume';
+      if (taskLower.includes('resume') || taskLower.includes('questionnaire')) return 'color-resume';
       return 'color-planning';
     }
     
@@ -1434,7 +1433,7 @@
       if (taskLower.includes('count') || taskLower.includes('guest')) return 'GuestCount';
       if (taskLower.includes('thank')) return 'ThankYou';
       if (taskLower.includes('cut-off') || taskLower.includes('cutoff')) return 'CutOff';
-      if (taskLower.includes('resume')) return 'Resume';
+      if (taskLower.includes('resume') || taskLower.includes('questionnaire')) return 'Questionnaire';
       return 'Planning';
     }
     
@@ -1454,15 +1453,13 @@
       wedding: [
         { days: 112, task: 'Schedule Planning Call', minLead: 112 },
         { days: 84, task: 'Schedule Planning Call', minLead: 84, maxLead: 111 },
-        { days: 56, task: 'Tasting', minLead: 56 },
-        { days: 35, task: 'BEO Draft Due', minLead: 35 },
+        { days: 90, task: 'Schedule Tasting', minLead: 90 },
         { days: 21, task: 'Menu Selections Due', minLead: 21 },
         { days: 14, task: 'Final Guaranteed Guest Count', minLead: 1 },
         { days: -1, task: 'Send Thank You Email', minLead: 1 }
       ],
       'non-wedding': [
         { days: 84, task: 'Schedule Planning Call', minLead: 84 },
-        { days: 35, task: 'BEO Draft Due', minLead: 35 },
         { days: 21, task: 'Menu Selections Due', minLead: 21 },
         { days: 14, task: 'Final Guaranteed Guest Count', minLead: 1 },
         { days: -1, task: 'Send Thank You Email', minLead: 1 }
@@ -1470,30 +1467,28 @@
       'rooms-only': [
         { days: 56, task: 'Schedule Planning Call', minLead: 45 },
         { days: 31, task: 'Cut-Off Date', minLead: 45 },
-        { days: 21, task: 'Group Resume Due', minLead: 45 },
+        { days: 21, task: 'Group Questionnaire Due', minLead: 45 },
         { days: -1, task: 'Send Thank You Email', minLead: 1 }
       ],
       'rooms-only-short': [
         { days: 15, task: 'Cut-Off Date', minLead: 1 },
-        { days: 12, task: 'Group Resume Due', minLead: 1 },
+        { days: 12, task: 'Group Questionnaire Due', minLead: 1 },
         { days: -1, task: 'Send Thank You Email', minLead: 1 }
       ],
       'rooms-events': [
         { days: 56, task: 'Schedule Planning Call', minLead: 45 },
-        { days: 35, task: 'BEO Draft Due', minLead: 35 },
         { days: 31, task: 'Cut-Off Date', minLead: 45 },
         { days: 21, task: 'Menu Selections Due', minLead: 21 },
-        { days: 21, task: 'Group Resume Due', minLead: 45 },
+        { days: 21, task: 'Group Questionnaire Due', minLead: 45 },
         { days: 14, task: 'Final Guaranteed Guest Count', minLead: 1 },
         { days: -1, task: 'Send Thank You Email', minLead: 1 }
       ],
       'rooms-wedding': [
         { days: 84, task: 'Schedule Planning Call', minLead: 84 },
-        { days: 56, task: 'Tasting', minLead: 56 },
-        { days: 35, task: 'BEO Draft Due', minLead: 35 },
+        { days: 90, task: 'Schedule Tasting', minLead: 90 },
         { days: 31, task: 'Cut-Off Date', minLead: 45 },
         { days: 21, task: 'Menu Selections Due', minLead: 21 },
-        { days: 21, task: 'Group Resume Due', minLead: 45 },
+        { days: 21, task: 'Group Questionnaire Due', minLead: 45 },
         { days: 14, task: 'Final Guaranteed Guest Count', minLead: 1 },
         { days: -1, task: 'Send Thank You Email', minLead: 1 }
       ],
